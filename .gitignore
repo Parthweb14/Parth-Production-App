@@ -14,9 +14,8 @@ next-env.d.ts
 
 # env (NEVER commit secrets — Turso token, GitHub token, auth secret)
 .env
-.env.local
-.env*.local
-.env.production
+.env.*
+!.env.example
 
 # misc
 .DS_Store

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSetting } from "@/lib/settings";
 
+// Avoid build-time page-data collection requiring a live DB connection.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const logoUrl = await getSetting("logo_url");
