@@ -1,5 +1,5 @@
 // src/lib/invoice-number.ts
-// Order number format: KP + year + 4-digit sequence (e.g. KP20260001)
+// Order number format: PP + year + 4-digit sequence (e.g. PP20260001)
 // After 9999, cycles with a base-26 letter suffix: 0001A, 0002A, ... 9999A,
 // 0001B, ... 9999Z, 0001AA, 0002AA, ... 9999AA, 0001AB, ... (L19: previously a
 // single-letter suffix that wrapped incorrectly and produced non-letter chars
@@ -7,7 +7,7 @@
 export function formatOrderNumber(orderId: number, createdAt?: Date | string | number): string {
   const date = createdAt ? new Date(createdAt) : new Date();
   const year = date.getFullYear();
-  const prefix = `KP${year}`;
+  const prefix = `PP${year}`;
   const seq = orderId;
   if (seq <= 9999) {
     return `${prefix}${String(seq).padStart(4, "0")}`;

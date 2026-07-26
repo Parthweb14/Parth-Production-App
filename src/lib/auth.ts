@@ -519,7 +519,7 @@ export async function sendForgotOtp(
       const { sendEmail } = await import("@/lib/email");
       await sendEmail({
         to: normalized,
-        subject: "Password Reset OTP — Kadam Production",
+        subject: "Password Reset OTP — Parth Production",
         html: `
       <div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Password Reset Request</h2>
@@ -530,7 +530,7 @@ export async function sendForgotOtp(
         </div>
         <p style="color:#6b7280;font-size:13px">If you did not request this, please ignore this email.</p>
         <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb" />
-        <p style="font-size:12px;color:#6b7280">Kadam Production — Professional Event Services</p>
+        <p style="font-size:12px;color:#6b7280">Parth Production — Professional Event Services</p>
       </div>
     `,
       });
@@ -747,7 +747,7 @@ export async function issueEmailVerification(userId: number, email: string, name
   const { sendEmail } = await import("@/lib/email");
   await sendEmail({
     to: normalized,
-    subject: "Verify your email — Kadam Production",
+    subject: "Verify your email — Parth Production",
     html: `
       <div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Verify your email</h2>

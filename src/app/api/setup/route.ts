@@ -310,13 +310,13 @@ export async function GET(req: Request) {
       const hash = await bcrypt.hash(adminPassword, 12);
       await client.execute({
         sql: "INSERT INTO users (name, email, password, role, must_change_pwd, email_verified_at, active, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, unixepoch(), 1, unixepoch(), unixepoch())",
-        args: ["KP Admin", "admin@kadamproduction.in", hash],
+        args: ["Parth Admin", "admin@parthproduction.com", hash],
       });
       adminSeeded = true;
-      log.push("Seeded admin → admin@kadamproduction.in (password written only to server logs once)");
+      log.push("Seeded admin → admin@parthproduction.com (password written only to server logs once)");
       // Avoid logging the plaintext password — store a one-time marker instead.
       console.log("==========================================================");
-      console.log("[setup] Seeded admin user: admin@kadamproduction.in");
+      console.log("[setup] Seeded admin user: admin@parthproduction.com");
       console.log("[setup] One-time password (store securely, will not be shown again):");
       console.log(`[setup] ${adminPassword}`);
       console.log("==========================================================");

@@ -215,7 +215,7 @@ export function SettingsView({
               autoComplete="new-password"
             />
           </div>
-          <div><Label>From Email</Label><Input placeholder="noreply@kadamproduction.in" value={smtpData.from} onChange={(e) => setSmtpData((s) => ({ ...s, from: e.target.value }))} /></div>
+          <div><Label>From Email</Label><Input placeholder="noreply@parthproduction.in" value={smtpData.from} onChange={(e) => setSmtpData((s) => ({ ...s, from: e.target.value }))} /></div>
           <div className="flex items-center gap-3 pt-1">
             <Button type="submit" disabled={smtpPending}>{smtpPending ? "Saving…" : "Save SMTP"}</Button>
           </div>

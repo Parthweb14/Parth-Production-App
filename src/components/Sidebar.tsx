@@ -82,8 +82,8 @@ export function Sidebar({
           </div>
         )}
         <div className="text-center">
-          <div className="text-base font-bold text-gray-900 dark:text-white">{role === "admin" ? "KP Admin" : "KP Staff"}</div>
-          <div className="text-xs text-gray-500 dark:text-white/60">Kadam Production</div>
+          <div className="text-base font-bold text-gray-900 dark:text-white">{role === "admin" ? "Parth Admin" : "Parth Staff"}</div>
+          <div className="text-xs text-gray-500 dark:text-white/60">Parth Production</div>
         </div>
         <div className="mt-3 truncate rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-500 dark:bg-white/10 dark:text-white/70">
           <span className="text-gray-400 dark:text-white/50">Signed in as </span>
@@ -130,7 +130,7 @@ export function Sidebar({
           Logout
         </button>
         <p className="mt-2 px-3 text-[10px] text-gray-400 dark:text-gray-600">
-          &copy; {new Date().getFullYear()} Kadam Production / Powered by{" "}
+          &copy; {new Date().getFullYear()} Parth Production / Powered by{" "}
           <a href="https://trishulhub.in" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-400">
             Trishulhub
           </a>

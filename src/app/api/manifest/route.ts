@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   const manifest = {
-    name: "Kadam Production",
-    short_name: "KadamProd",
+    name: "Parth Production",
+    short_name: "ParthProd",
     description: "Professional Event Services — operations dashboard",
     start_url: "/",
     display: "standalone",

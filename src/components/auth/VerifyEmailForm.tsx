@@ -81,7 +81,7 @@ export function VerifyEmailForm() {
             </Link>
           </div>
         </div>
-        <p className="mt-4 text-center text-xs text-white/50">&copy; {year} Kadam Production</p>
+        <p className="mt-4 text-center text-xs text-white/50">&copy; {year} Parth Production</p>
       </div>
     </div>
   );

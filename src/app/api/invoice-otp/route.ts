@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
         .replace(/"/g, "&quot;");
       await sendEmail({
         to: normalizedEmail,
-        subject: `Your OTP for Invoice ${orderNum} — Kadam Production`,
+        subject: `Your OTP for Invoice ${orderNum} — Parth Production`,
         html: `
           <div style="max-width:480px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
-            <h2 style="color:#1e293b">Invoice Access — Kadam Production</h2>
+            <h2 style="color:#1e293b">Invoice Access — Parth Production</h2>
             <p>Hello <strong>${safeName}</strong>,</p>
             <p>Use the following OTP to view your invoice for order <strong>${orderNum}</strong>:</p>
             <div style="margin:20px 0;padding:16px 24px;background:#f1f5f9;border-radius:12px;text-align:center;font-size:28px;font-weight:bold;letter-spacing:6px;color:#0f172a">${otpCode}</div>

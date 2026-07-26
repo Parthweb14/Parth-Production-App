@@ -1,5 +1,5 @@
 // drizzle/schema.ts
-// Kadam Production — complete schema (Turso/libSQL).
+// Parth Production — complete schema (Turso/libSQL).
 // Source of truth: PHP MySQL schema (reverse-engineered), preserved verbatim,
 // plus NEW columns/tables added by the Next.js rebuild (soft deletes, audit, sessions).
 import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
@@ -127,7 +127,7 @@ export const items = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     name: text("name").notNull(), // PHP uppercases on save — preserved
-    barcode: text("barcode").notNull().unique(), // "KP" + time() + rand(100,999)
+    barcode: text("barcode").notNull().unique(), // "PP" + time() + rand(100,999)
     categoryId: integer("category_id"),
     subcategoryId: integer("subcategory_id"),
     description: text("description"),

@@ -15,7 +15,7 @@ export const useTheme = () => useContext(Ctx);
 
 function getStored(): Theme {
   try {
-    return (localStorage.getItem("kp-theme") as Theme) || "system";
+    return (localStorage.getItem("pp-theme") as Theme) || "system";
   } catch {
     return "system";
   }
@@ -65,7 +65,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setThemeState(t);
         setResolved(resolve(t));
         try {
-          localStorage.setItem("kp-theme", t);
+          localStorage.setItem("pp-theme", t);
         } catch {}
         apply(t);
 
@@ -84,7 +84,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setThemeState(t);
       setResolved(resolve(t));
       try {
-        localStorage.setItem("kp-theme", t);
+        localStorage.setItem("pp-theme", t);
       } catch {}
       apply(t);
     }

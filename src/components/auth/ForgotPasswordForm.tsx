@@ -41,14 +41,14 @@ export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
           <div className="mb-6 text-center">
             {logoUrl ? (
               <div className="mx-auto mb-4 flex items-center justify-center">
-                <img src={logoUrl} alt="Kadam Production" className="kp-logo-zoom mx-auto h-auto w-full max-h-40 rounded-xl object-contain" />
+                <img src={logoUrl} alt="Parth Production" className="pp-logo-zoom mx-auto h-auto w-full max-h-40 rounded-xl object-contain" />
               </div>
             ) : (
               <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-lg">
                 <Film className="h-8 w-8" />
               </div>
             )}
-            <h1 className="text-xl font-extrabold tracking-wide text-gray-100">KADAM PRODUCTION</h1>
+            <h1 className="text-xl font-extrabold tracking-wide text-gray-100">PARTH PRODUCTION</h1>
             <p className="text-sm text-gray-400">
               {step === "email" && "Forgot your password? Reset it here."}
               {step === "otp" && "Check your email for the OTP."}
@@ -180,7 +180,7 @@ export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
           )}
         </div>
         <p className="mt-4 text-center text-xs text-white/50">
-          &copy; {year} Kadam Production / Powered by{" "}
+          &copy; {year} Parth Production / Powered by{" "}
           <a href="https://trishulhub.in" target="_blank" rel="noopener noreferrer" className="font-medium text-white/70 underline hover:text-white">
             Trishulhub
           </a>

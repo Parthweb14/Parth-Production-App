@@ -81,5 +81,5 @@ export async function testSmtpSettings(toEmail?: string) {
     throw new Error("Test email may only be sent to your admin email or the configured From address.");
   }
   const { sendEmail } = await import("@/lib/email");
-  await sendEmail({ to: target, subject: "Kadam Production — SMTP Test", html: "<p>SMTP is working correctly.</p>" });
+  await sendEmail({ to: target, subject: "Parth Production — SMTP Test", html: "<p>SMTP is working correctly.</p>" });
 }

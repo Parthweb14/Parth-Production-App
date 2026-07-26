@@ -53,7 +53,7 @@ export function DashboardShell({
           <button onClick={() => setOpen(true)} aria-label="Open menu" className="rounded-lg p-1.5 hover:bg-white/10">
             <Menu className="h-6 w-6" />
           </button>
-          <span className="flex-1 font-bold">Kadam Production</span>
+          <span className="flex-1 font-bold">Parth Production</span>
           <div className="flex items-center gap-1 [&_button]:text-white [&_button]:hover:bg-white/10 [&_button]:hover:text-white">
             <ThemeToggle />
             <NotificationBell />

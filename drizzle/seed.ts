@@ -17,9 +17,9 @@ async function main() {
   // Explicit timestamps: drizzle-kit push creates NOT NULL cols without SQL defaults.
   await client.execute({
     sql: "INSERT INTO users (name, email, password, role, must_change_pwd, email_verified_at, active, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, unixepoch(), 1, unixepoch(), unixepoch())",
-    args: ["KP Admin", "admin@kadamproduction.in", hash],
+    args: ["Parth Admin", "admin@parthproduction.com", hash],
   });
-  console.log("✓ Seeded admin → admin@kadamproduction.in / admin123");
+  console.log("✓ Seeded admin → admin@parthproduction.com / admin123");
 }
 
 main().catch((e) => {

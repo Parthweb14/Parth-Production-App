@@ -301,8 +301,8 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-@keyframes kp-logo-zoom {
+@keyframes pp-logo-zoom {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.12); }
 }
-.kp-logo-zoom { animation: kp-logo-zoom 3s ease-in-out infinite; }
+.pp-logo-zoom { animation: pp-logo-zoom 3s ease-in-out infinite; }

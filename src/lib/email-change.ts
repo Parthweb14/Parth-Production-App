@@ -28,7 +28,7 @@ function sha256(raw: string): string {
 }
 
 function appBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_BASE_URL || "https://kadamproduction-opencode.vercel.app").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_BASE_URL || "https://parth-production-app.vercel.app").replace(/\/$/, "");
 }
 
 function genOtp(): string {
@@ -111,7 +111,7 @@ export async function adminStartEmailChange(input: {
   const verifyUrl = `${appBaseUrl()}/change-email/verify?token=${verifyToken}`;
   await sendEmail({
     to: newEmail,
-    subject: "Confirm your new admin email — Kadam Production",
+    subject: "Confirm your new admin email — Parth Production",
     html: `
       <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Confirm email change</h2>
@@ -458,7 +458,7 @@ export async function submitEmailChangeCredentials(input: {
   const verifyUrl = `${appBaseUrl()}/change-email/verify?token=${verifyToken}`;
   await sendEmail({
     to: newEmail,
-    subject: "Verify your new email — Kadam Production",
+    subject: "Verify your new email — Parth Production",
     html: `
       <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Verify your new email</h2>

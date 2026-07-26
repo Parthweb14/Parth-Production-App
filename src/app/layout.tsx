@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProviderWrapper } from "@/components/ThemeProviderWrapper";
+import { AgentationProvider } from "@/components/AgentationProvider";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Kadam Production",
+  title: "Parth Production",
   description: "Professional Event Services — operations dashboard",
   manifest: "/api/manifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "KadamProd",
+    title: "ParthProd",
   },
 };
 
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 
 const themeScript = `
 (function() {
-  var t = localStorage.getItem('kp-theme') || 'system';
+  var t = localStorage.getItem('pp-theme') || 'system';
   var d = document.documentElement;
   if (t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     d.classList.add('dark');
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ThemeProviderWrapper>{children}</ThemeProviderWrapper>
+        <AgentationProvider />
       </body>
     </html>
   );
