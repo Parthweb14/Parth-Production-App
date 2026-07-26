@@ -1,0 +1,308 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Brand accent is a visible blue in BOTH light and dark modes.
+     Previously --accent was #0f172a (near-black) which made primary
+     buttons invisible (white text on near-black in light mode was fine,
+     but in dark mode --accent flipped to #f1f5f9 and text was also remapped
+     to #f1f5f9 → white-on-white). A single blue stays legible everywhere. */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: rgba(37, 99, 235, 0.08);
+  --accent-glow: rgba(37, 99, 235, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-shadow: 0 2px 8px rgba(0, 0, 0, 0.05), 0 12px 40px rgba(0, 0, 0, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+
+  --glass-card-bg: rgba(255, 255, 255, 0.7);
+  --glass-card-border: rgba(255, 255, 255, 0.65);
+  --glass-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 32px rgba(0, 0, 0, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+
+  --glass-input-bg: rgba(255, 255, 255, 0.6);
+  --glass-input-border: #e2e8f0;
+
+  --glass-sidebar-bg: rgba(255, 255, 255, 0.82);
+  --glass-sidebar-border: rgba(226, 232, 240, 0.7);
+
+  --overlay-bg: rgba(15, 23, 42, 0.25);
+  --scrollbar-thumb: #cbd5e1;
+  --nav-hover: rgba(37, 99, 235, 0.06);
+  --nav-active-bg: rgba(37, 99, 235, 0.1);
+  --nav-active-text: #1d4ed8;
+
+  --brand-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
+}
+
+.dark {
+  --bg: #05070a;
+  --bg-secondary: #0a0c12;
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-light: rgba(59, 130, 246, 0.12);
+  --accent-glow: rgba(59, 130, 246, 0.18);
+
+  --glass-bg: rgba(15, 18, 28, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), 0 12px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --glass-card-bg: rgba(18, 22, 32, 0.6);
+  --glass-card-border: rgba(255, 255, 255, 0.07);
+  --glass-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --glass-input-bg: rgba(15, 18, 28, 0.5);
+  --glass-input-border: rgba(255, 255, 255, 0.08);
+
+  --glass-sidebar-bg: rgba(8, 10, 16, 0.82);
+  --glass-sidebar-border: rgba(255, 255, 255, 0.06);
+
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --scrollbar-thumb: #1e293b;
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --nav-active-bg: rgba(59, 130, 246, 0.16);
+  --nav-active-text: #93c5fd;
+
+  --brand-gradient: linear-gradient(135deg, #2563eb 0%, #1e40af 50%, #1e3a8a 100%);
+}
+
+@keyframes theme-wipe-in {
+  from { clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); }
+  to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+}
+@keyframes theme-wipe-out {
+  from { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+  to { clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%); }
+}
+
+@keyframes action-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    transform: translateZ(0);
+  }
+  .glass-card {
+    background: var(--glass-card-bg);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--glass-card-border);
+    box-shadow: var(--glass-card-shadow);
+    transform: translateZ(0);
+  }
+  .glass-input {
+    background: var(--glass-input-bg);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--glass-input-border);
+    color: var(--text);
+    transform: translateZ(0);
+  }
+  /* Native <select> dropdown menus: black text on white options in dark mode */
+  .dark select.glass-input,
+  .dark .glass-input {
+    color: #f8fafc;
+  }
+  .dark select option,
+  .dark select.glass-input option {
+    background-color: #ffffff;
+    color: #000000;
+  }
+  .glass-sidebar {
+    background: var(--glass-sidebar-bg);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-right: 1px solid var(--glass-sidebar-border);
+    transform: translateZ(0);
+  }
+  .glass-sidebar .brand-header {
+    background: var(--glass-sidebar-bg);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-bottom: 1px solid var(--glass-sidebar-border);
+    transform: translateZ(0);
+    position: relative;
+  }
+}
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer utilities {
+  /*
+    Light-mode-only grey text/chrome used across list pages (without dark:
+    variants) becomes illegible on --bg #05070a. Remap near-black / mid-grey
+    text and light chrome surfaces for readable dark / system themes.
+  */
+  .dark .text-gray-900 { color: #f1f5f9; }
+  .dark .text-gray-800 { color: #e2e8f0; }
+  .dark .text-gray-700 { color: #cbd5e1; }
+  .dark .text-gray-600 { color: #e2e8f0; }
+  .dark .text-gray-500 { color: #cbd5e1; }
+  .dark .text-gray-400 { color: #94a3b8; }
+  .dark .text-black { color: #ffffff; }
+  .dark .bg-gray-50 { background-color: rgba(255, 255, 255, 0.04); }
+  .dark .bg-white { background-color: rgba(18, 22, 32, 0.6); }
+  .dark .hover\:bg-gray-50:hover { background-color: rgba(255, 255, 255, 0.06); }
+  .dark .border-gray-50 { border-color: rgba(255, 255, 255, 0.06); }
+  .dark .border-gray-100 { border-color: rgba(255, 255, 255, 0.08); }
+  .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .dark .bg-red-50 { background-color: rgba(127, 29, 29, 0.35); }
+  .dark .bg-emerald-50 { background-color: rgba(6, 78, 59, 0.35); }
+
+  /* Invoice print-area on screen: white headings/body text in dark mode */
+  .dark .print-area:not(.barcode-print-sheet) {
+    color: #ffffff;
+  }
+  .dark .print-area:not(.barcode-print-sheet) h1,
+  .dark .print-area:not(.barcode-print-sheet) .font-black,
+  .dark .print-area:not(.barcode-print-sheet) .font-bold,
+  .dark .print-area:not(.barcode-print-sheet) .font-semibold {
+    color: #ffffff !important;
+  }
+  .dark .print-area:not(.barcode-print-sheet) .text-gray-700,
+  .dark .print-area:not(.barcode-print-sheet) .text-gray-500 {
+    color: #e2e8f0 !important;
+  }
+  .dark .print-area:not(.barcode-print-sheet) thead.bg-black,
+  .dark .print-area:not(.barcode-print-sheet) .bg-black {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+  }
+  .dark .print-area:not(.barcode-print-sheet) thead.bg-black th,
+  .dark .print-area:not(.barcode-print-sheet) .bg-black * {
+    color: #ffffff !important;
+  }
+
+  /* Balance Due / light footer row: avoid white text on light gray */
+  .dark .print-area:not(.barcode-print-sheet) tfoot tr,
+  .dark .print-area:not(.barcode-print-sheet) .bg-gray-100 {
+    background-color: rgba(255, 255, 255, 0.14) !important;
+  }
+  .dark .print-area:not(.barcode-print-sheet) tfoot td,
+  .dark .print-area:not(.barcode-print-sheet) .bg-gray-100,
+  .dark .print-area:not(.barcode-print-sheet) .bg-gray-100 * {
+    color: #ffffff !important;
+  }
+
+  /* Barcode print sheet: always solid white (no dark glass remaps) */
+  .barcode-print-sheet,
+  .dark .barcode-print-sheet,
+  .dark .barcode-print-sheet.bg-white {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #d1d5db !important;
+  }
+  .dark .barcode-print-sheet,
+  .dark .barcode-print-sheet * {
+    color: #000000 !important;
+  }
+  .dark .barcode-print-sheet svg rect {
+    fill: #000000 !important;
+  }
+}
+.dark body { color-scheme: dark; }
+:root { color-scheme: light; }
+
+/* Zoom lock helpers: keep layout stable on phones/tablets; responsive CSS still uses device-width */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+body {
+  touch-action: manipulation;
+  overscroll-behavior-x: none;
+}
+/* iOS Safari zooms focused fields under 16px — force 16px on phones only */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+.fab {
+  position: fixed;
+  right: 1rem;
+  bottom: 1.25rem;
+  z-index: 50;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-gradient);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+@media (max-width: 640px) {
+  .fab { width: 4.5rem; height: 4.5rem; right: 1rem; bottom: 1.5rem; }
+}
+.fab:active { transform: scale(0.92); }
+
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .print-area * { color: #000000 !important; }
+  .print-area thead.bg-black,
+  .print-area .bg-black {
+    background: #000000 !important;
+    color: #ffffff !important;
+  }
+  .print-area thead.bg-black th,
+  .print-area .bg-black * {
+    color: #ffffff !important;
+  }
+  .no-print { display: none !important; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes kp-logo-zoom {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+.kp-logo-zoom { animation: kp-logo-zoom 3s ease-in-out infinite; }
