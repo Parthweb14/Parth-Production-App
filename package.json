@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",
+    "agentation": "^3.0.2",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -36,7 +37,6 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "agentation": "^3.0.2",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.0",
     "eslint": "^9.0.0",
