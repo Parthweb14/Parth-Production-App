@@ -7,6 +7,9 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED = new Set([16, 32, 48, 64, 120, 152, 180, 192, 512]);
 
+/** Dark plate so the white Parth mark stays visible on light browser chrome. */
+const FAVICON_BG = { r: 11, g: 18, b: 32, alpha: 1 };
+
 async function logoToBuffer(logoUrl: string): Promise<Buffer | null> {
   if (logoUrl.startsWith("data:")) {
     const comma = logoUrl.indexOf(",");
@@ -19,6 +22,38 @@ async function logoToBuffer(logoUrl: string): Promise<Buffer | null> {
     return Buffer.from(await res.arrayBuffer());
   }
   return null;
+}
+
+/** Trim lockup, then keep the left square mark (P icon) for favicon readability. */
+async function extractBrandMark(input: Buffer): Promise<Buffer> {
+  const trimmed = await sharp(input).trim({ threshold: 12 }).ensureAlpha().toBuffer({ resolveWithObject: true });
+  const { width, height } = trimmed.info;
+  const side = Math.min(width, height);
+  return sharp(trimmed.data)
+    .extract({ left: 0, top: 0, width: side, height })
+    .resize(side, side, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+}
+
+async function renderFavicon(input: Buffer, size: number): Promise<Buffer> {
+  const mark = await extractBrandMark(input);
+  const inset = Math.max(2, Math.round(size * 0.11));
+  const markSize = Math.max(8, size - inset * 2);
+  const markResized = await sharp(mark)
+    .resize(markSize, markSize, {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+
+  return sharp({
+    create: { width: size, height: size, channels: 4, background: FAVICON_BG },
+  })
+    .composite([{ input: markResized, gravity: "centre" }])
+    .png()
+    .toBuffer();
 }
 
 export async function GET(req: NextRequest) {
@@ -57,14 +92,8 @@ export async function GET(req: NextRequest) {
     const raw = Number(req.nextUrl.searchParams.get("size") || "32");
     const size = ALLOWED.has(raw) ? raw : 32;
 
-    // Square favicon/app-icon: contain + white pad.
-    const png = await sharp(input)
-      .resize(size, size, {
-        fit: "contain",
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
-      })
-      .png()
-      .toBuffer();
+    // Square favicon: P mark on dark navy so white artwork is visible in light tabs.
+    const png = await renderFavicon(input, size);
 
     return new NextResponse(png, {
       status: 200,
