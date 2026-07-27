@@ -102,8 +102,8 @@ export function SettingsView({
     if (!testEmail.trim()) return;
     setTestPending(true);
     try {
-      await testSmtpSettings(testEmail.trim());
-      setSmtpMsg("Test email sent!");
+      const result = await testSmtpSettings(testEmail.trim());
+      setSmtpMsg(result.ok ? "Test email sent!" : `Error: ${result.error}`);
     } catch (err) {
       setSmtpMsg(`Error: ${(err as Error).message}`);
     }
@@ -216,15 +216,20 @@ export function SettingsView({
             />
           </div>
           <div><Label>From Email</Label><Input placeholder="noreply@parthproduction.in" value={smtpData.from} onChange={(e) => setSmtpData((s) => ({ ...s, from: e.target.value }))} /></div>
+          <p className="text-xs text-gray-500">
+            For Gmail, use <strong>smtp.gmail.com</strong>, port <strong>587</strong>, your full Gmail address as the username,
+            and a Google <strong>App Password</strong> as the SMTP password.
+          </p>
           <div className="flex items-center gap-3 pt-1">
             <Button type="submit" disabled={smtpPending}>{smtpPending ? "Saving…" : "Save SMTP"}</Button>
           </div>
         </form>
         <div className="mt-4 border-t border-gray-100 pt-4">
           <Label>Send Test Email</Label>
+          <p className="mt-1 text-xs text-gray-500">You can send a test to any email address after saving SMTP settings.</p>
           <div className="mt-1 flex gap-2">
             <Input placeholder="test@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="flex-1" />
-            <Button variant="success" onClick={sendTest} disabled={testPending}><Send className="h-4 w-4" /> {testPending ? "Sending…" : "Test"}</Button>
+            <Button type="button" variant="success" onClick={sendTest} disabled={testPending}><Send className="h-4 w-4" /> {testPending ? "Sending…" : "Test"}</Button>
           </div>
         </div>
         {smtpMsg && <p className={`mt-2 text-sm ${smtpMsg.startsWith("Error") ? "text-kp-danger" : "text-kp-success"}`}>{smtpMsg}</p>}

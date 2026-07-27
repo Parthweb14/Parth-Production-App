@@ -72,14 +72,30 @@ export async function saveGstSettings(input: { number: string; percentage: numbe
 
 export async function testSmtpSettings(toEmail?: string) {
   const admin = await requireAdmin();
-  if (!admin) throw new Error("Unauthorized");
-  // Restrict test recipient to the admin's own email (or configured smtp_from).
-  const from = (await getSetting("smtp_from")) || admin.email;
+  if (!admin) return { ok: false as const, error: "Unauthorized" };
+
   const target = (toEmail || admin.email).trim().toLowerCase();
-  const allowed = new Set([admin.email.toLowerCase(), from.toLowerCase()]);
-  if (!allowed.has(target)) {
-    throw new Error("Test email may only be sent to your admin email or the configured From address.");
+  if (!target) return { ok: false as const, error: "Enter a recipient email address." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+    return { ok: false as const, error: "Enter a valid recipient email address." };
   }
-  const { sendEmail } = await import("@/lib/email");
-  await sendEmail({ to: target, subject: "Parth Production — SMTP Test", html: "<p>SMTP is working correctly.</p>" });
+
+  try {
+    const { sendEmail } = await import("@/lib/email");
+    await sendEmail({
+      to: target,
+      subject: "Parth Production — SMTP Test",
+      html: "<p>SMTP is working correctly.</p>",
+    });
+    return { ok: true as const };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not send test email.";
+    if (message.includes("SMTP not configured")) {
+      return { ok: false as const, error: "Fill in SMTP host, port, username, password, and From email first." };
+    }
+    if (message.toLowerCase().includes("authentication")) {
+      return { ok: false as const, error: "SMTP login failed. Recheck username and password/app password." };
+    }
+    return { ok: false as const, error: message || "Could not send test email. Please recheck your SMTP details." };
+  }
 }
