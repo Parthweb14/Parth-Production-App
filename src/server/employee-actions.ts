@@ -168,6 +168,18 @@ export async function toggleEmployeeActive(userId: number) {
   const emp = await getTargetEmployee(userId);
   if (!emp) throw new Error("Employee not found.");
   const nextActive = !emp.active;
+  if (nextActive) {
+    // Never activate an account that has not proven inbox ownership.
+    const full = await db
+      .select({ emailVerifiedAt: schema.users.emailVerifiedAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1)
+      .then((r) => r[0]);
+    if (!full?.emailVerifiedAt) {
+      throw new Error("Cannot activate until the employee verifies their email.");
+    }
+  }
   await db.update(schema.users).set({ active: nextActive }).where(eq(schema.users.id, userId));
   // Revoke sessions when deactivating so access ends immediately.
   if (!nextActive) {

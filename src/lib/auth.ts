@@ -371,11 +371,12 @@ export async function login(
     return { ok: false, error: "Server error (auth). Please try again." };
   }
 
-  // Single generic failure for missing user, bad password, or inactive/unverified.
-  // Pending email verification keeps active=false until proven — same error copy.
+  // Single generic failure for missing user, bad password, inactive, or unverified.
+  // Require both active=true AND proven inbox ownership (emailVerifiedAt).
   const activeOk = user ? user.active !== false : false;
+  const verifiedOk = user ? user.emailVerifiedAt != null : false;
 
-  if (!user || !match || !activeOk) {
+  if (!user || !match || !activeOk || !verifiedOk) {
     return fail(AUTH_GENERIC_FAIL, { captchaRequired: lock.captchaRequired });
   }
 
@@ -539,8 +540,8 @@ export async function sendForgotOtp(
       console.error("[auth] forgot OTP email failed");
     }
   } else {
-    // Burn equivalent time when no account exists (approx. SMTP latency).
-    await new Promise((r) => setTimeout(r, 180 + randomInt(0, 120)));
+    // Burn time comparable to a slow SMTP round-trip so missing-email timing matches.
+    await new Promise((r) => setTimeout(r, 600 + randomInt(0, 400)));
   }
 
   await equalizeTiming(started, MIN_FORGOT_MS);
@@ -567,7 +568,25 @@ export async function verifyForgotOtp(
     return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: challenge, retryAfter: rl.retryAfter };
   }
 
+  const rlIp = await generalRateLimit(`verify_otp_ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 });
+  if (!rlIp.allowed) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_OTP_MS);
+    return {
+      ok: false,
+      error: AUTH_RATE_LIMITED,
+      captchaRequired: true,
+      captcha: challenge,
+      retryAfter: rlIp.retryAfter,
+    };
+  }
+
   const lock = await getLockoutStatus(bucket);
+  if (lock.locked) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_OTP_MS);
+    return { ok: false, error: AUTH_LOCKED, captchaRequired: true, captcha: challenge, retryAfter: lock.retryAfterSec };
+  }
   if (lock.captchaRequired) {
     const okCaptcha = await verifyAuthCaptcha(String(captcha?.id || ""), String(captcha?.answer || ""));
     if (!okCaptcha) {
@@ -783,6 +802,11 @@ export async function verifyEmailOwnership(
   }
 
   const lock = await getLockoutStatus(bucket);
+  if (lock.locked) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_VERIFY_MS);
+    return { ok: false, error: AUTH_LOCKED, captchaRequired: true, captcha: challenge, retryAfter: lock.retryAfterSec };
+  }
   if (lock.captchaRequired) {
     const okCaptcha = await verifyAuthCaptcha(String(captcha?.id || ""), String(captcha?.answer || ""));
     if (!okCaptcha) {
@@ -790,6 +814,13 @@ export async function verifyEmailOwnership(
       await equalizeTiming(started, MIN_VERIFY_MS);
       return { ok: false, error: AUTH_CAPTCHA_REQUIRED, captchaRequired: true, captcha: challenge };
     }
+  }
+
+  const rlIp = await generalRateLimit(`email_verify_ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 });
+  if (!rlIp.allowed) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_VERIFY_MS);
+    return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: challenge };
   }
 
   const key = `email_verify_${sha256Hex(normalized).slice(0, 32)}`;

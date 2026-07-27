@@ -40,12 +40,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/favicon.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/favicon.png" />
-        <link rel="apple-touch-icon" sizes="120x120" href="/favicon.png" />
-        <link rel="apple-touch-icon-precomposed" href="/favicon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/api/icon?size=32" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/api/icon?size=192" />
+        <link rel="shortcut icon" href="/api/icon?size=32" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/api/icon?size=180" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/api/icon?size=152" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/api/icon?size=120" />
+        <link rel="apple-touch-icon-precomposed" href="/api/icon?size=180" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>

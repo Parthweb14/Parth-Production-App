@@ -16,12 +16,17 @@ export const AUTH_VERIFY_FAIL = "Invalid or expired verification code.";
 export const AUTH_RATE_LIMITED = "Too many attempts. Please wait and try again.";
 export const AUTH_CAPTCHA_REQUIRED = "Please complete the security check and try again.";
 export const AUTH_LOCKED = "Too many failed attempts. Please wait before trying again.";
+/** Generic email-change message — never reveal whether an address is already registered. */
+export const AUTH_EMAIL_CHANGE_UNAVAILABLE =
+  "Unable to complete that email change. Check the details and try again.";
 
 export const MIN_LOGIN_MS = 450;
-export const MIN_FORGOT_MS = 700;
+/** High enough to cover typical SMTP latency so missing-email paths match existing ones. */
+export const MIN_FORGOT_MS = 1200;
 export const MIN_OTP_MS = 450;
 export const MIN_RESET_MS = 450;
 export const MIN_VERIFY_MS = 450;
+export const MIN_EMAIL_CHANGE_MS = 700;
 
 /** Reset / verification tokens expire within one hour. */
 export const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -117,7 +122,10 @@ export async function createAuthCaptcha(): Promise<{ id: string; question: strin
   const b = randomInt(2, 12);
   const id = randomBytes(16).toString("hex");
   const answer = String(a + b);
-  const secret = process.env.AUTH_SECRET || "captcha";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.trim().length < 8) {
+    throw new Error("AUTH_SECRET is required for CAPTCHA.");
+  }
   await writeJsonSetting(captchaKey(id), {
     hash: sha256Hex(`${answer}:${secret}:${id}`),
     expiresAt: Date.now() + CAPTCHA_TTL_MS,
@@ -132,7 +140,8 @@ export async function verifyAuthCaptcha(id: string, answer: string): Promise<boo
   await deleteSetting(key); // single-use
   if (!data || typeof data.hash !== "string" || typeof data.expiresAt !== "number") return false;
   if (Date.now() > data.expiresAt) return false;
-  const secret = process.env.AUTH_SECRET || "captcha";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.trim().length < 8) return false;
   const expected = sha256Hex(`${String(answer).trim()}:${secret}:${id}`);
   return safeEqualHex(expected, data.hash);
 }

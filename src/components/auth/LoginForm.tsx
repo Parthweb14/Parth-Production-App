@@ -29,11 +29,13 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
           <div className="mb-6 text-center">
             {logoUrl ? (
               <div className="mx-auto mb-4 flex items-center justify-center">
-                <img
-                  src={logoUrl}
-                  alt="Parth Production"
-                  className="pp-logo-zoom mx-auto h-auto w-full max-h-40 rounded-xl object-contain"
-                />
+                <div className="logo-plate mx-auto flex w-full max-w-xs items-center justify-center rounded-xl p-3">
+                  <img
+                    src={logoUrl}
+                    alt="Parth Production"
+                    className="pp-logo-zoom mx-auto h-auto w-full max-h-40 rounded-lg object-contain"
+                  />
+                </div>
               </div>
             ) : (
               <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-lg">

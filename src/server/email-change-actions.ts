@@ -20,6 +20,8 @@ export type EmailChangeActionState = {
   success?: string;
   otpSent?: boolean;
   requestId?: string;
+  captchaRequired?: boolean;
+  captcha?: { id: string; question: string };
 };
 
 export async function adminStartEmailChangeAction(
@@ -38,9 +40,16 @@ export async function adminStartEmailChangeAction(
     currentPassword,
     newEmail,
   });
-  if (!result.ok) return { error: result.error };
+  if (!result.ok) {
+    return {
+      error: result.error,
+      captchaRequired: result.captchaRequired,
+      captcha: result.captcha,
+    };
+  }
+  // Identical success copy whether the address was free or taken (anti-enumeration).
   return {
-    success: "OTP sent to your new email. Enter the OTP or open the link to confirm.",
+    success: result.message,
     otpSent: true,
     requestId: result.requestId,
   };
@@ -84,10 +93,7 @@ export async function employeeRequestEmailChangeAction(
     requestedNewEmail: newEmail || undefined,
   });
   if (!result.ok) return { error: result.error };
-  return {
-    success:
-      "Request submitted. An admin must approve it before you can complete the change.",
-  };
+  return { success: result.message };
 }
 
 export async function approveEmailChangeAction(formData: FormData) {
@@ -173,6 +179,15 @@ export async function verifyEmailChangeOtpAction(
   const otp = String(formData.get("otp") || "");
   const requestId = String(formData.get("requestId") || "") || undefined;
   const result = await verifyEmailChangeWithOtp({ email, otp, requestId });
-  if (!result.ok) return { error: result.error };
+  if (!result.ok) {
+    return {
+      error: result.error,
+      captchaRequired: "captchaRequired" in result ? Boolean(result.captchaRequired) : undefined,
+      captcha:
+        "captcha" in result && result.captcha
+          ? (result.captcha as { id: string; question: string })
+          : undefined,
+    };
+  }
   redirect("/login?emailChanged=1");
 }

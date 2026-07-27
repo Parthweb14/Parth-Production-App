@@ -72,7 +72,9 @@ export function Sidebar({
       <div className="brand-header px-5 py-5">
         {logoUrl ? (
           <div className="mb-3 flex items-center justify-center">
-            <img src={logoUrl} alt="Logo" className="h-auto w-full max-h-28 rounded-xl object-contain" />
+            <div className="logo-plate flex w-full items-center justify-center rounded-xl p-3">
+              <img src={logoUrl} alt="Logo" className="h-auto w-full max-h-28 rounded-lg object-contain" />
+            </div>
           </div>
         ) : (
           <div className="mb-3 flex items-center justify-center">

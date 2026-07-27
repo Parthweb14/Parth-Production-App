@@ -1,17 +1,39 @@
 // src/lib/email-change.ts
 // Secure email-change flows: admin (logged-in + OTP) and employee (request → approve → form → verify).
 import { randomBytes, randomInt, createHash } from "crypto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, schema } from "./db";
 import { hashPassword } from "./auth";
 import { sendEmail } from "./email";
+import {
+  AUTH_EMAIL_CHANGE_UNAVAILABLE,
+  AUTH_RATE_LIMITED,
+  AUTH_CAPTCHA_REQUIRED,
+  AUTH_LOCKED,
+  MIN_EMAIL_CHANGE_MS,
+  authBucket,
+  clearAuthFailures,
+  createAuthCaptcha,
+  equalizeTiming,
+  getLockoutStatus,
+  getRequestIp,
+  recordAuthFailure,
+  safeEqualHex,
+  sha256Hex,
+  verifyAuthCaptcha,
+} from "./auth-security";
+import { checkRateLimit as generalRateLimit } from "./rate-limiter";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Form-access + new-email verification window. */
 export const EMAIL_CHANGE_TTL_MS = 60 * 60 * 1000; // 1 hour
 /** Pending employee request waiting for admin approval. */
 export const EMAIL_CHANGE_REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Identical copy whether the new address is free or already registered. */
+export const EMAIL_CHANGE_START_OK =
+  "If that address is available, a one-time code was sent. Check the inbox and enter the OTP below.";
 
 function escapeHtml(s: unknown): string {
   if (s === null || s === undefined) return "";
@@ -40,15 +62,45 @@ function genToken(): string {
 }
 
 async function emailTaken(email: string, excludeUserId?: number): Promise<boolean> {
-  const row = await db
+  const rows = await db
     .select({ id: schema.users.id })
     .from(schema.users)
-    .where(and(eq(schema.users.email, email), isNull(schema.users.deletedAt)))
-    .limit(1)
-    .then((r) => r[0]);
-  if (!row) return false;
-  if (excludeUserId && row.id === excludeUserId) return false;
-  return true;
+    .where(and(sql`lower(${schema.users.email}) = ${email}`, isNull(schema.users.deletedAt)))
+    .limit(5);
+  return rows.some((row) => !excludeUserId || row.id !== excludeUserId);
+}
+
+/**
+ * Free an address held only by a stale invite (never verified, inactive employee).
+ * Does not touch verified or active accounts — that is the real "taken" case.
+ */
+async function releaseStaleEmailClaim(email: string, excludeUserId?: number): Promise<void> {
+  const rows = await db
+    .select({
+      id: schema.users.id,
+      role: schema.users.role,
+      active: schema.users.active,
+      emailVerifiedAt: schema.users.emailVerifiedAt,
+    })
+    .from(schema.users)
+    .where(and(sql`lower(${schema.users.email}) = ${email}`, isNull(schema.users.deletedAt)))
+    .limit(5);
+
+  for (const row of rows) {
+    if (excludeUserId && row.id === excludeUserId) continue;
+    const unverified = row.emailVerifiedAt == null;
+    const inactive = row.active === false;
+    if (row.role === "employee" && unverified && inactive) {
+      await db
+        .update(schema.users)
+        .set({
+          deletedAt: new Date(),
+          email: sql`"deleted_" || ${schema.users.id} || "_" || ${schema.users.email}`,
+          active: false,
+        })
+        .where(eq(schema.users.id, row.id));
+    }
+  }
 }
 
 async function getUser(userId: number) {
@@ -60,23 +112,92 @@ async function getUser(userId: number) {
     .then((r) => r[0]);
 }
 
+async function enforceEmailChangeLimits(
+  action: string,
+  email: string,
+  captcha?: { id?: string; answer?: string }
+): Promise<{ ok: true } | { ok: false; error: string; captchaRequired?: boolean; captcha?: { id: string; question: string } }> {
+  const ip = await getRequestIp();
+  const bucket = authBucket(action, email, ip);
+
+  const rl = await generalRateLimit(`${action}:${sha256Hex(email).slice(0, 24)}`, {
+    max: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+  const rlIp = await generalRateLimit(`${action}_ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed || !rlIp.allowed) {
+    return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: await createAuthCaptcha() };
+  }
+
+  const lock = await getLockoutStatus(bucket);
+  if (lock.locked) {
+    return {
+      ok: false,
+      error: AUTH_LOCKED,
+      captchaRequired: true,
+      captcha: await createAuthCaptcha(),
+    };
+  }
+  if (lock.captchaRequired) {
+    const okCaptcha = await verifyAuthCaptcha(String(captcha?.id || ""), String(captcha?.answer || ""));
+    if (!okCaptcha) {
+      return {
+        ok: false,
+        error: AUTH_CAPTCHA_REQUIRED,
+        captchaRequired: true,
+        captcha: await createAuthCaptcha(),
+      };
+    }
+  }
+  return { ok: true };
+}
+
 // ─── Admin: start change (OTP to new email) ───────────────────────────────
 
 export async function adminStartEmailChange(input: {
   adminId: number;
   currentPassword: string;
   newEmail: string;
-}): Promise<{ ok: true; requestId: string } | { ok: false; error: string }> {
+  captcha?: { id?: string; answer?: string };
+}): Promise<
+  | { ok: true; requestId: string; message: string }
+  | { ok: false; error: string; captchaRequired?: boolean; captcha?: { id: string; question: string } }
+> {
+  const started = Date.now();
   const newEmail = input.newEmail.toLowerCase().trim();
-  if (!EMAIL_RE.test(newEmail)) return { ok: false, error: "Invalid email address." };
+
+  if (!EMAIL_RE.test(newEmail)) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Invalid email address." };
+  }
 
   const admin = await getUser(input.adminId);
-  if (!admin || admin.role !== "admin") return { ok: false, error: "Unauthorized." };
-  if (!(await bcrypt.compare(input.currentPassword, admin.password))) {
+  if (!admin || admin.role !== "admin") {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Unauthorized." };
+  }
+
+  // Always bcrypt-compare for timing parity on wrong password.
+  const pwdOk = await bcrypt.compare(input.currentPassword, admin.password);
+  if (!pwdOk) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Current password is incorrect." };
   }
-  if (newEmail === admin.email.toLowerCase()) return { ok: false, error: "New email must be different." };
-  if (await emailTaken(newEmail, admin.id)) return { ok: false, error: "Unable to use that email." };
+  if (newEmail === admin.email.toLowerCase()) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "New email must be different." };
+  }
+
+  const limits = await enforceEmailChangeLimits("email_change_start", newEmail, input.captcha);
+  if (!limits.ok) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return limits;
+  }
+
+  // Release stale unverified invites holding this address (fixes false "unable to use").
+  await releaseStaleEmailClaim(newEmail, admin.id);
+
+  const taken = await emailTaken(newEmail, admin.id);
 
   // Cancel prior open admin change requests
   await db
@@ -88,6 +209,18 @@ export async function adminStartEmailChange(input: {
         eq(schema.emailChangeRequests.status, "pending")
       )
     );
+
+  // Anti-enumeration: identical success copy + timing whether taken or free.
+  // When taken, still mint a dummy requestId so the OTP UI does not leak availability.
+  if (taken) {
+    await new Promise((r) => setTimeout(r, 400 + randomInt(0, 400)));
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return {
+      ok: true,
+      requestId: crypto.randomUUID(),
+      message: EMAIL_CHANGE_START_OK,
+    };
+  }
 
   const otp = genOtp();
   const verifyToken = genToken();
@@ -108,39 +241,72 @@ export async function adminStartEmailChange(input: {
     expiresAt,
   });
 
-  const verifyUrl = `${appBaseUrl()}/change-email/verify?token=${verifyToken}`;
-  await sendEmail({
-    to: newEmail,
-    subject: "Confirm your new admin email — Parth Production",
-    html: `
+  // Token is stored hashed only; email body carries OTP (never put secrets in URLs/logs).
+  const verifyPage = `${appBaseUrl()}/change-email/verify`;
+  try {
+    await sendEmail({
+      to: newEmail,
+      subject: "Confirm your new admin email — Parth Production",
+      html: `
       <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Confirm email change</h2>
         <p>Hello <strong>${escapeHtml(admin.name)}</strong>,</p>
-        <p>Enter this one-time OTP in the app, or open the one-time link. Both expire in <strong>1 hour</strong> and can be used only once.</p>
+        <p>Enter this one-time OTP in the app. It expires in <strong>1 hour</strong> and can be used only once.</p>
         <div style="margin:20px 0;text-align:center">
           <span style="display:inline-block;padding:12px 28px;font-size:28px;font-weight:700;letter-spacing:8px;background:#f3f4f6;border-radius:8px;color:#1e40af">${otp}</span>
         </div>
-        <p style="text-align:center"><a href="${verifyUrl}" style="display:inline-block;padding:10px 20px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Verify new email</a></p>
+        <p style="text-align:center"><a href="${verifyPage}" style="display:inline-block;padding:10px 20px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open verification page</a></p>
         <p style="color:#6b7280;font-size:12px">If you did not request this, ignore this message. Your current email stays active until verification completes.</p>
       </div>
     `,
-  });
+    });
+  } catch (err) {
+    console.error("[email-change] admin start send failed");
+    await db
+      .update(schema.emailChangeRequests)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(schema.emailChangeRequests.id, id));
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: AUTH_EMAIL_CHANGE_UNAVAILABLE };
+  }
 
-  return { ok: true, requestId: id };
+  // verifyToken kept hashed in DB for optional future server-side use; never emailed in a URL.
+  void verifyToken;
+  await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+  return { ok: true, requestId: id, message: EMAIL_CHANGE_START_OK };
 }
 
 export async function adminConfirmEmailChangeOtp(input: {
   adminId: number;
   requestId: string;
   otp: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+  captcha?: { id?: string; answer?: string };
+}): Promise<
+  | { ok: true }
+  | { ok: false; error: string; captchaRequired?: boolean; captcha?: { id: string; question: string } }
+> {
+  const started = Date.now();
+  const limits = await enforceEmailChangeLimits("email_change_confirm", String(input.adminId), input.captcha);
+  if (!limits.ok) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return limits;
+  }
+
   const row = await db
     .select()
     .from(schema.emailChangeRequests)
     .where(and(eq(schema.emailChangeRequests.id, input.requestId), eq(schema.emailChangeRequests.userId, input.adminId)))
     .limit(1)
     .then((r) => r[0]);
-  return finalizeNewEmailVerification(row, { otp: input.otp });
+
+  const result = await finalizeNewEmailVerification(row, { otp: input.otp });
+  if (!result.ok) {
+    await recordAuthFailure(authBucket("email_change_confirm", String(input.adminId), await getRequestIp()));
+  } else {
+    await clearAuthFailures(authBucket("email_change_confirm", String(input.adminId), await getRequestIp()));
+  }
+  await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+  return result;
 }
 
 // ─── Employee: request ────────────────────────────────────────────────────
@@ -148,15 +314,27 @@ export async function adminConfirmEmailChangeOtp(input: {
 export async function employeeRequestEmailChange(input: {
   userId: number;
   requestedNewEmail?: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const started = Date.now();
   const user = await getUser(input.userId);
-  if (!user || user.role !== "employee") return { ok: false, error: "Unauthorized." };
+  if (!user || user.role !== "employee") {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Unauthorized." };
+  }
 
   const requested = (input.requestedNewEmail || "").toLowerCase().trim();
   if (requested) {
-    if (!EMAIL_RE.test(requested)) return { ok: false, error: "Invalid email address." };
-    if (requested === user.email.toLowerCase()) return { ok: false, error: "New email must be different." };
-    if (await emailTaken(requested, user.id)) return { ok: false, error: "Unable to use that email." };
+    if (!EMAIL_RE.test(requested)) {
+      await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+      return { ok: false, error: "Invalid email address." };
+    }
+    if (requested === user.email.toLowerCase()) {
+      await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+      return { ok: false, error: "New email must be different." };
+    }
+    await releaseStaleEmailClaim(requested, user.id);
+    // Never reveal whether the address is taken — still accept the request;
+    // admin approval + final verification re-check ownership.
   }
 
   const open = await db
@@ -170,7 +348,10 @@ export async function employeeRequestEmailChange(input: {
     )
     .limit(1)
     .then((r) => r[0]);
-  if (open) return { ok: false, error: "You already have a pending email change request." };
+  if (open) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "You already have a pending email change request." };
+  }
 
   await db.insert(schema.emailChangeRequests).values({
     id: crypto.randomUUID(),
@@ -182,7 +363,6 @@ export async function employeeRequestEmailChange(input: {
     expiresAt: new Date(Date.now() + EMAIL_CHANGE_REQUEST_TTL_MS),
   });
 
-  // Notify admins
   const admins = await db
     .select({ id: schema.users.id })
     .from(schema.users)
@@ -201,7 +381,11 @@ export async function employeeRequestEmailChange(input: {
     }
   }
 
-  return { ok: true };
+  await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+  return {
+    ok: true,
+    message: "Request submitted. An admin must approve it before you can complete the change.",
+  };
 }
 
 export async function listPendingEmailChangeRequests() {
@@ -295,30 +479,42 @@ export async function adminApproveEmailChange(adminId: number, requestId: string
     })
     .where(eq(schema.emailChangeRequests.id, requestId));
 
-  const formUrl = `${appBaseUrl()}/change-email/complete?token=${formToken}`;
-  await sendEmail({
-    to: user.email,
-    subject: "Email change approved — complete your update",
-    html: `
+  // OTP only — no token in URL (open /change-email/complete and enter email + OTP).
+  const formPage = `${appBaseUrl()}/change-email/complete`;
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Email change approved — complete your update",
+      html: `
       <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Email change approved</h2>
         <p>Hello <strong>${escapeHtml(user.name)}</strong>,</p>
-        <p>An administrator approved your email change request. Use the one-time link or OTP below within <strong>1 hour</strong> to open the secure form. You will confirm your current password and set a new email + password. Your account email does <strong>not</strong> change until the new inbox is verified.</p>
+        <p>An administrator approved your email change request. Use the one-time OTP below within <strong>1 hour</strong> on the secure form. You will confirm your current password and set a new email + password. Your account email does <strong>not</strong> change until the new inbox is verified.</p>
         <div style="margin:20px 0;text-align:center">
           <span style="display:inline-block;padding:12px 28px;font-size:28px;font-weight:700;letter-spacing:8px;background:#f3f4f6;border-radius:8px;color:#1e40af">${formOtp}</span>
         </div>
-        <p style="text-align:center"><a href="${formUrl}" style="display:inline-block;padding:10px 20px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open change form</a></p>
-        <p style="color:#6b7280;font-size:12px">Link and OTP are single-use. If you did not request this, contact your administrator.</p>
+        <p style="text-align:center"><a href="${formPage}" style="display:inline-block;padding:10px 20px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open change form</a></p>
+        <p style="color:#6b7280;font-size:12px">OTP is single-use. If you did not request this, contact your administrator.</p>
       </div>
     `,
-  });
+    });
+  } catch (err) {
+    console.error("[email-change] approve send failed");
+    await db
+      .update(schema.emailChangeRequests)
+      .set({ status: "pending", formTokenHash: null, formOtpHash: null, formTokenExpiresAt: null, updatedAt: new Date() })
+      .where(eq(schema.emailChangeRequests.id, requestId));
+    return { ok: false as const, error: AUTH_EMAIL_CHANGE_UNAVAILABLE };
+  }
+
+  void formToken; // stored hashed only; not emailed in a URL
 
   try {
     await db.insert(schema.notifications).values({
       userId: user.id,
       type: "email_change_approved",
       title: "Email change approved",
-      message: "Check your email for a one-time link/OTP to complete the change.",
+      message: "Check your email for a one-time OTP to complete the change.",
       link: "/change-email",
     });
   } catch {
@@ -333,19 +529,22 @@ export async function resolveApprovedFormAccess(input: {
   token?: string;
   email?: string;
   otp?: string;
-}): Promise<{ ok: true; requestId: string; currentEmail: string; requestedNewEmail: string | null } | { ok: false; error: string }> {
-  let row:
-    | typeof schema.emailChangeRequests.$inferSelect
-    | undefined;
+}): Promise<
+  | { ok: true; requestId: string; currentEmail: string; requestedNewEmail: string | null }
+  | { ok: false; error: string }
+> {
+  let row: typeof schema.emailChangeRequests.$inferSelect | undefined;
 
   if (input.token) {
+    // Legacy path: accept token if somehow provided, compare with timing-safe hex equality.
     const hash = sha256(input.token);
-    row = await db
+    const candidates = await db
       .select()
       .from(schema.emailChangeRequests)
-      .where(and(eq(schema.emailChangeRequests.formTokenHash, hash), eq(schema.emailChangeRequests.status, "approved")))
-      .limit(1)
-      .then((r) => r[0]);
+      .where(eq(schema.emailChangeRequests.status, "approved"))
+      .orderBy(desc(schema.emailChangeRequests.approvedAt))
+      .limit(20);
+    row = candidates.find((c) => c.formTokenHash && safeEqualHex(c.formTokenHash, hash));
   } else if (input.email && input.otp) {
     const email = input.email.toLowerCase().trim();
     const candidates = await db
@@ -398,10 +597,17 @@ export async function submitEmailChangeCredentials(input: {
   newEmail: string;
   newPassword: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const started = Date.now();
   const newEmail = input.newEmail.toLowerCase().trim();
   const currentEmail = input.currentEmail.toLowerCase().trim();
-  if (!EMAIL_RE.test(newEmail)) return { ok: false, error: "Invalid new email." };
-  if (input.newPassword.length < 8) return { ok: false, error: "New password must be at least 8 characters." };
+  if (!EMAIL_RE.test(newEmail)) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Invalid new email." };
+  }
+  if (input.newPassword.length < 8) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "New password must be at least 8 characters." };
+  }
 
   const row = await db
     .select()
@@ -409,37 +615,61 @@ export async function submitEmailChangeCredentials(input: {
     .where(eq(schema.emailChangeRequests.id, input.requestId))
     .limit(1)
     .then((r) => r[0]);
-  if (!row || row.status !== "approved") return { ok: false, error: "Invalid request." };
-  if (row.formTokenUsedAt) return { ok: false, error: "This access code was already used." };
+  if (!row || row.status !== "approved") {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Invalid request." };
+  }
+  if (row.formTokenUsedAt) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "This access code was already used." };
+  }
   if (!row.formTokenExpiresAt || row.formTokenExpiresAt.getTime() < Date.now()) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "This access code has expired." };
   }
 
-  // Validate one-time form access still matches
   let accessOk = false;
-  if (input.accessToken && row.formTokenHash === sha256(input.accessToken)) accessOk = true;
+  if (input.accessToken && row.formTokenHash && safeEqualHex(row.formTokenHash, sha256(input.accessToken))) {
+    accessOk = true;
+  }
   if (!accessOk && input.accessOtp && row.formOtpHash) {
     accessOk = await bcrypt.compare(input.accessOtp, row.formOtpHash);
   }
-  if (!accessOk) return { ok: false, error: "Invalid or expired access code." };
+  if (!accessOk) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Invalid or expired access code." };
+  }
 
   const user = await getUser(row.userId);
-  if (!user) return { ok: false, error: "Invalid request." };
+  if (!user) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Invalid request." };
+  }
   if (user.email.toLowerCase() !== currentEmail || row.currentEmail.toLowerCase() !== currentEmail) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Current email does not match this account." };
   }
   if (!(await bcrypt.compare(input.currentPassword, user.password))) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Current password is incorrect." };
   }
-  if (newEmail === currentEmail) return { ok: false, error: "New email must be different." };
-  if (await emailTaken(newEmail, user.id)) return { ok: false, error: "Unable to use that email." };
+  if (newEmail === currentEmail) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "New email must be different." };
+  }
+
+  await releaseStaleEmailClaim(newEmail, user.id);
+  if (await emailTaken(newEmail, user.id)) {
+    // Generic — do not say "already in use".
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: AUTH_EMAIL_CHANGE_UNAVAILABLE };
+  }
 
   const verifyToken = genToken();
   const verifyOtp = genOtp();
   const verifyExpires = new Date(Date.now() + EMAIL_CHANGE_TTL_MS);
   const pendingPasswordHash = await hashPassword(input.newPassword);
 
-  // Consume form access (single-use) and move to credentials_ok
   await db
     .update(schema.emailChangeRequests)
     .set({
@@ -455,11 +685,12 @@ export async function submitEmailChangeCredentials(input: {
     })
     .where(eq(schema.emailChangeRequests.id, row.id));
 
-  const verifyUrl = `${appBaseUrl()}/change-email/verify?token=${verifyToken}`;
-  await sendEmail({
-    to: newEmail,
-    subject: "Verify your new email — Parth Production",
-    html: `
+  const verifyPage = `${appBaseUrl()}/change-email/verify`;
+  try {
+    await sendEmail({
+      to: newEmail,
+      subject: "Verify your new email — Parth Production",
+      html: `
       <div style="max-width:520px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Verify your new email</h2>
         <p>Hello <strong>${escapeHtml(user.name)}</strong>,</p>
@@ -467,12 +698,19 @@ export async function submitEmailChangeCredentials(input: {
         <div style="margin:20px 0;text-align:center">
           <span style="display:inline-block;padding:12px 28px;font-size:28px;font-weight:700;letter-spacing:8px;background:#f3f4f6;border-radius:8px;color:#1e40af">${verifyOtp}</span>
         </div>
-        <p style="text-align:center"><a href="${verifyUrl}" style="display:inline-block;padding:10px 20px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Verify new email</a></p>
-        <p style="color:#6b7280;font-size:12px">OTP and link expire in 1 hour and are single-use.</p>
+        <p style="text-align:center"><a href="${verifyPage}" style="display:inline-block;padding:10px 20px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Open verification page</a></p>
+        <p style="color:#6b7280;font-size:12px">OTP expires in 1 hour and is single-use.</p>
       </div>
     `,
-  });
+    });
+  } catch (err) {
+    console.error("[email-change] credentials verify send failed");
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: AUTH_EMAIL_CHANGE_UNAVAILABLE };
+  }
 
+  void verifyToken;
+  await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
   return { ok: true };
 }
 
@@ -494,26 +732,37 @@ async function finalizeNewEmailVerification(
   }
 
   let ok = false;
-  if (proof.token && row.verifyTokenHash === sha256(proof.token)) ok = true;
+  if (proof.token && row.verifyTokenHash && safeEqualHex(row.verifyTokenHash, sha256(proof.token))) {
+    ok = true;
+  }
   if (!ok && proof.otp && row.verifyOtpHash) ok = await bcrypt.compare(proof.otp, row.verifyOtpHash);
   if (!ok) return { ok: false, error: "Invalid or expired verification." };
 
   const newEmail = (row.pendingNewEmail || row.requestedNewEmail || "").toLowerCase().trim();
   if (!newEmail || !EMAIL_RE.test(newEmail)) return { ok: false, error: "Invalid request state." };
+
+  await releaseStaleEmailClaim(newEmail, row.userId);
   if (await emailTaken(newEmail, row.userId)) {
-    return { ok: false, error: "Unable to use that email." };
+    return { ok: false, error: AUTH_EMAIL_CHANGE_UNAVAILABLE };
   }
 
   const user = await getUser(row.userId);
   if (!user) return { ok: false, error: "User not found." };
 
-  const patch: { email: string; password?: string; updatedAt: Date } = {
+  const patch: {
+    email: string;
+    password?: string;
+    emailVerifiedAt: Date;
+    active: boolean;
+    updatedAt: Date;
+  } = {
     email: newEmail,
+    emailVerifiedAt: new Date(),
+    active: true,
     updatedAt: new Date(),
   };
   if (row.pendingPasswordHash) patch.password = row.pendingPasswordHash;
 
-  // Atomic-ish: mark verify used, then update user, then complete request
   await db
     .update(schema.emailChangeRequests)
     .set({ verifyUsedAt: new Date(), updatedAt: new Date() })
@@ -526,7 +775,6 @@ async function finalizeNewEmailVerification(
     .set({ status: "completed", completedAt: new Date(), updatedAt: new Date() })
     .where(eq(schema.emailChangeRequests.id, row.id));
 
-  // Revoke other sessions so devices re-auth with new email
   await db
     .update(schema.sessions)
     .set({ revokedAt: new Date() })
@@ -536,18 +784,31 @@ async function finalizeNewEmailVerification(
 }
 
 export async function verifyEmailChangeWithToken(token: string) {
+  // Prefer not to use URL tokens; kept for safeEqualHex-verified legacy links only.
   const hash = sha256(token);
-  const row = await db
+  const candidates = await db
     .select()
     .from(schema.emailChangeRequests)
-    .where(eq(schema.emailChangeRequests.verifyTokenHash, hash))
-    .limit(1)
-    .then((r) => r[0]);
+    .orderBy(desc(schema.emailChangeRequests.updatedAt))
+    .limit(30);
+  const row = candidates.find((r) => r.verifyTokenHash && safeEqualHex(r.verifyTokenHash, hash));
   return finalizeNewEmailVerification(row, { token });
 }
 
-export async function verifyEmailChangeWithOtp(input: { email: string; otp: string; requestId?: string }) {
+export async function verifyEmailChangeWithOtp(input: {
+  email: string;
+  otp: string;
+  requestId?: string;
+  captcha?: { id?: string; answer?: string };
+}) {
+  const started = Date.now();
   const email = input.email.toLowerCase().trim();
+  const limits = await enforceEmailChangeLimits("email_change_verify", email, input.captcha);
+  if (!limits.ok) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return limits;
+  }
+
   let rows = await db
     .select()
     .from(schema.emailChangeRequests)
@@ -562,8 +823,13 @@ export async function verifyEmailChangeWithOtp(input: { email: string; otp: stri
     if (!row.verifyOtpHash) continue;
     if (row.status !== "pending" && row.status !== "credentials_ok") continue;
     if (await bcrypt.compare(input.otp, row.verifyOtpHash)) {
-      return finalizeNewEmailVerification(row, { otp: input.otp });
+      const result = await finalizeNewEmailVerification(row, { otp: input.otp });
+      if (result.ok) await clearAuthFailures(authBucket("email_change_verify", email, await getRequestIp()));
+      await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+      return result;
     }
   }
+  await recordAuthFailure(authBucket("email_change_verify", email, await getRequestIp()));
+  await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
   return { ok: false as const, error: "Invalid or expired verification." };
 }
