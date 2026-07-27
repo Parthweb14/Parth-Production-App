@@ -314,6 +314,6 @@ body {
 
 @keyframes pp-logo-zoom {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  50% { transform: scale(1.04); }
 }
-.pp-logo-zoom { animation: pp-logo-zoom 3s ease-in-out infinite; }
+.pp-logo-zoom { animation: pp-logo-zoom 3.5s ease-in-out infinite; transform-origin: center; }

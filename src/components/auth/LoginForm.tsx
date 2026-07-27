@@ -29,11 +29,13 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
           <div className="mb-6 text-center">
             {logoUrl ? (
               <div className="mx-auto mb-4 flex items-center justify-center">
-                <div className="logo-plate mx-auto flex w-full max-w-xs items-center justify-center rounded-xl p-3">
+                <div className="logo-plate inline-flex items-center justify-center rounded-xl px-3.5 py-2.5">
                   <img
-                    src={logoUrl}
+                    src="/api/icon?trim=1&h=160"
                     alt="Parth Production"
-                    className="pp-logo-zoom mx-auto h-auto w-full max-h-40 rounded-lg object-contain"
+                    width={236}
+                    height={64}
+                    className="pp-logo-zoom h-14 w-auto max-w-[236px] object-contain sm:h-16"
                   />
                 </div>
               </div>

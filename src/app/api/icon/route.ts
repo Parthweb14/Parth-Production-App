@@ -23,9 +23,6 @@ async function logoToBuffer(logoUrl: string): Promise<Buffer | null> {
 
 export async function GET(req: NextRequest) {
   try {
-    const raw = Number(req.nextUrl.searchParams.get("size") || "32");
-    const size = ALLOWED.has(raw) ? raw : 32;
-
     const logoUrl = await getSetting("logo_url");
     if (!logoUrl) {
       return new NextResponse(null, { status: 204 });
@@ -36,7 +33,31 @@ export async function GET(req: NextRequest) {
       return new NextResponse(null, { status: 204 });
     }
 
-    // Contain + white pad keeps brand mark readable at tiny favicon sizes without cropping.
+    const trim = req.nextUrl.searchParams.get("trim") === "1";
+
+    // Trim mode: strip empty/black padding so the wide brand lockup fills auth/sidebar frames.
+    if (trim) {
+      const rawH = Number(req.nextUrl.searchParams.get("h") || "128");
+      const height = Number.isFinite(rawH) ? Math.min(256, Math.max(48, Math.round(rawH))) : 128;
+      const png = await sharp(input)
+        .trim({ threshold: 12 })
+        .resize({ height, fit: "inside", withoutEnlargement: false })
+        .png()
+        .toBuffer();
+
+      return new NextResponse(png, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
+        },
+      });
+    }
+
+    const raw = Number(req.nextUrl.searchParams.get("size") || "32");
+    const size = ALLOWED.has(raw) ? raw : 32;
+
+    // Square favicon/app-icon: contain + white pad.
     const png = await sharp(input)
       .resize(size, size, {
         fit: "contain",
