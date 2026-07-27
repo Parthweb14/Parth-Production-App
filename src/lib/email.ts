@@ -22,6 +22,9 @@ export async function createTransporter() {
     secure: portNum === 465,
     requireTLS: portNum === 587,
     auth: { user, pass },
+    connectionTimeout: 12_000,
+    greetingTimeout: 12_000,
+    socketTimeout: 20_000,
   });
 }
 
