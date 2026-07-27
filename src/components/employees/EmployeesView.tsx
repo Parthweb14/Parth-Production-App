@@ -177,7 +177,27 @@ function ResetPwdModal({ target, onClose, onError }: { target: { id: number; nam
 
 function DeleteBtn({ id, name, onError }: { id: number; name: string; onError: (msg: string) => void }) {
   const [pending, setPending] = useState(false);
-  return <Button size="sm" variant="danger" disabled={pending} onClick={async () => { if (confirm(`Remove ${name}?`)) { setPending(true); try { await deleteEmployee(id); } catch (err) { onError((err as Error).message); setPending(false); } } }}>{pending ? "…" : "Delete"}</Button>;
+  return (
+    <Button
+      size="sm"
+      variant="danger"
+      disabled={pending}
+      onClick={async () => {
+        if (!confirm(`Remove ${name}?`)) return;
+        setPending(true);
+        try {
+          const res = await deleteEmployee(id);
+          if (!res.ok) onError(res.error);
+        } catch (err) {
+          onError((err as Error).message);
+        } finally {
+          setPending(false);
+        }
+      }}
+    >
+      {pending ? "…" : "Delete"}
+    </Button>
+  );
 }
 
 function EditBtn({ onClick }: { onClick: () => void }) {
