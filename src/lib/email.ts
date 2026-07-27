@@ -32,7 +32,11 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
   const transporter = await createTransporter();
   if (!transporter) throw new Error("SMTP not configured. Set SMTP settings in Admin Settings.");
   const from = (await getSetting("smtp_from")) || process.env.SMTP_FROM || "noreply@parthproduction.in";
-  await transporter.sendMail({ from, to, subject, html });
+  const sendPromise = transporter.sendMail({ from, to, subject, html });
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("SMTP send timed out")), 25_000);
+  });
+  await Promise.race([sendPromise, timeoutPromise]);
 }
 
 export async function sendWelcomeEmail({ to, name }: { to: string; name: string }) {
