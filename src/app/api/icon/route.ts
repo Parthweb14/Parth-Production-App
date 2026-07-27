@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
         .png()
         .toBuffer();
 
-      return new NextResponse(png, {
+      return new NextResponse(new Uint8Array(png), {
         status: 200,
         headers: {
           "Content-Type": "image/png",
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     // Square favicon: P mark on dark navy so white artwork is visible in light tabs.
     const png = await renderFavicon(input, size);
 
-    return new NextResponse(png, {
+    return new NextResponse(new Uint8Array(png), {
       status: 200,
       headers: {
         "Content-Type": "image/png",
