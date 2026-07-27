@@ -147,14 +147,16 @@
     transform: translateZ(0);
     position: relative;
   }
-  /* Contrast plate so light logos stay visible on light glass and dark logos on dark glass. */
+  /* Brand logo is light-on-dark artwork — always use a dark plate so it stays
+     visible in both light and dark UI chrome (never flip to a white plate). */
   .logo-plate {
-    background: #0f172a;
-    border: 1px solid rgba(15, 23, 42, 0.2);
+    background: #0b1220;
+    border: 1px solid rgba(15, 23, 42, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   }
   .dark .logo-plate {
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: #0b1220;
+    border: 1px solid rgba(255, 255, 255, 0.14);
   }
 }
 

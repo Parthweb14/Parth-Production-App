@@ -39,7 +39,7 @@ export function AdminChangeEmailView({ currentEmail }: { currentEmail: string })
           Current email: <span className="font-semibold text-gray-900 dark:text-gray-100">{currentEmail}</span>
         </p>
         <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          You must be logged in. We send a one-time OTP and link to the new inbox (1 hour, single-use). Your email only changes after verification.
+          You must be logged in. We send a one-time OTP to the new inbox (1 hour, single-use). Your email only changes after verification.
         </p>
         <form action={startAction} className="space-y-4">
           <div>
