@@ -74,10 +74,12 @@ export function Sidebar({
           <div className="mb-3 flex items-center justify-center">
             <div className="logo-plate inline-flex w-full max-w-[210px] items-center justify-center rounded-xl px-3 py-2.5">
               <img
-                src="/api/icon?trim=1&h=128"
+                src="/api/icon?trim=1&h=168&v=5"
+                srcSet="/api/icon?trim=1&h=112&v=5 1x, /api/icon?trim=1&h=224&v=5 2x, /api/icon?trim=1&h=336&v=5 3x"
                 alt="Logo"
                 width={210}
                 height={56}
+                decoding="async"
                 className="h-12 w-auto max-w-full object-contain sm:h-14"
               />
             </div>

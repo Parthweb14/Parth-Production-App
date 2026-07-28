@@ -11,6 +11,7 @@ function resizeImage(file: File, maxDim: number): Promise<string> {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
+      // Never upscale small sources; keep full detail when already under maxDim.
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
@@ -19,7 +20,15 @@ function resizeImage(file: File, maxDim: number): Promise<string> {
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("Cannot process image."));
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, w, h);
+      // Prefer WebP for sharper detail at smaller payload; fall back to PNG.
+      const webp = canvas.toDataURL("image/webp", 0.94);
+      if (webp.startsWith("data:image/webp")) {
+        resolve(webp);
+        return;
+      }
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => reject(new Error("Could not read image file."));
@@ -68,7 +77,7 @@ export function SettingsView({
     setError(null);
     if (!file.type.startsWith("image/")) { setError("Only image files are allowed."); return; }
     try {
-      const dataUrl = await resizeImage(file, 256);
+      const dataUrl = await resizeImage(file, 1280);
       setPreview(dataUrl);
       setPending(true);
       try { await setLogo(dataUrl); } catch (err) { setError((err as Error).message); setPreview(logoUrl); } finally { setPending(false); }
@@ -122,7 +131,9 @@ export function SettingsView({
 
       <Card className="max-w-lg p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Company Logo</h3>
-        <p className="mb-4 text-xs text-gray-500">Shown in sidebar, invoices, PWA. Use a square image under ~220KB.</p>
+        <p className="mb-4 text-xs text-gray-500">
+          Shown in sidebar, login, invoices, and PWA. Upload a clear PNG/WebP at least ~800px wide (max ~1280px) for a sharp logo.
+        </p>
         <div className="mb-4 flex items-center gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
             {preview ? (

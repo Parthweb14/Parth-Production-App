@@ -73,12 +73,29 @@ export async function GET(req: NextRequest) {
     // Trim mode: strip empty/black padding so the wide brand lockup fills auth/sidebar frames.
     if (trim) {
       const rawH = Number(req.nextUrl.searchParams.get("h") || "128");
-      const height = Number.isFinite(rawH) ? Math.min(256, Math.max(48, Math.round(rawH))) : 128;
-      const png = await sharp(input)
+      const height = Number.isFinite(rawH) ? Math.min(1024, Math.max(48, Math.round(rawH))) : 128;
+
+      const trimmed = await sharp(input)
         .trim({ threshold: 12 })
-        .resize({ height, fit: "inside", withoutEnlargement: false })
-        .png()
-        .toBuffer();
+        .ensureAlpha()
+        .toBuffer({ resolveWithObject: true });
+
+      const nativeH = trimmed.info.height || height;
+      let pipeline = sharp(trimmed.data);
+      if (height !== nativeH) {
+        pipeline = pipeline.resize({
+          height,
+          fit: "inside",
+          kernel: sharp.kernel.lanczos3,
+          withoutEnlargement: false,
+        });
+        // Mild sharpen only when enlarging — reduces soft/blurry upscales from small sources.
+        if (height > nativeH) {
+          pipeline = pipeline.sharpen({ sigma: 0.7, m1: 0.9, m2: 0.45 });
+        }
+      }
+
+      const png = await pipeline.png({ compressionLevel: 6, quality: 100 }).toBuffer();
 
       return new NextResponse(new Uint8Array(png), {
         status: 200,
