@@ -38,6 +38,11 @@ function sanitizeRedirect(path: string): string {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Static documents (guides, etc.) are public downloads — no login wall.
+  if (pathname.endsWith(".pdf")) {
+    return NextResponse.next();
+  }
+
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return NextResponse.next();
   }
