@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getCurrentUser, requireAdmin } from "@/lib/auth";
-import { createNotification } from "./notification-actions";
+import { dispatchNotification } from "./notification-dispatcher";
 import { EVENT_CATEGORIES } from "@/drizzle/schema";
 import type { OrderStatus } from "@/drizzle/schema";
 import { formatOrderNumber } from "@/lib/invoice-number";
@@ -343,7 +343,7 @@ export async function saveAssignments(orderId: number, employeeIds: number[]) {
   if (toAdd.length) {
     await db.insert(schema.orderAssignments).values(toAdd.map((userId) => ({ orderId, userId })));
     for (const uid of toAdd) {
-      await createNotification({
+      await dispatchNotification({
         userId: uid,
         orderId,
         type: "order_assigned",
@@ -493,7 +493,7 @@ export async function markSetupDone(orderId: number) {
     .from(schema.users)
     .where(and(eq(schema.users.role, "admin"), isNull(schema.users.deletedAt), eq(schema.users.active, true)));
   for (const admin of admins) {
-    await createNotification({
+    await dispatchNotification({
       userId: admin.id,
       orderId,
       type: "setup_done",

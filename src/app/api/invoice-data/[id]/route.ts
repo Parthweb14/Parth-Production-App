@@ -13,7 +13,7 @@ const COOKIE_NAME = "kp_inv_access";
 
 function getSecret(): Uint8Array {
   const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET is required.");
+  if (!s || s.trim().length < 32) throw new Error("AUTH_SECRET is required (min 32 chars).");
   return new TextEncoder().encode(s);
 }
 

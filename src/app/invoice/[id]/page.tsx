@@ -4,6 +4,9 @@
 // The client component fetches the full invoice data via /api/invoice-data only
 // AFTER OTP verification succeeds. This prevents PII from leaking in the RSC
 // payload before OTP verification.
+//
+// Anti-enumeration: valid numeric IDs always render the OTP shell (no 404 vs
+// shell distinction for missing/soft-deleted orders).
 import { eq, and, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db, schema } from "@/lib/db";
@@ -15,7 +18,7 @@ type PageProps = { params: Promise<{ id: string }> };
 export default async function PublicInvoicePage({ params }: PageProps) {
   const { id } = await params;
   const orderId = Number(id);
-  if (!orderId) notFound();
+  if (!Number.isFinite(orderId) || orderId <= 0 || !Number.isInteger(orderId)) notFound();
 
   // Load ONLY the minimal data needed to show the verification screen.
   // Do NOT load client name, email, phone, address, or amounts here.
@@ -25,9 +28,10 @@ export default async function PublicInvoicePage({ params }: PageProps) {
     .where(and(eq(schema.orders.id, orderId), isNull(schema.orders.deletedAt)))
     .limit(1)
     .then((r) => r[0]);
-  if (!order) notFound();
 
-  const orderNum = formatOrderNumber(order.id, order.createdAt);
+  const orderNum = order
+    ? formatOrderNumber(order.id, order.createdAt)
+    : formatOrderNumber(orderId);
 
-  return <InvoicePublicView orderId={order.id} orderNum={orderNum} />;
+  return <InvoicePublicView orderId={orderId} orderNum={orderNum} />;
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { getScanEnabled } from "@/lib/settings";
 
 export async function scanItem(
   barcode: string,
@@ -12,6 +13,12 @@ export async function scanItem(
 ) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Unauthorized");
+
+  // Enforce scan_enabled for employees (admins may always scan for ops recovery).
+  if (user.role !== "admin") {
+    const enabled = await getScanEnabled();
+    if (!enabled) throw new Error("Scanning is currently disabled.");
+  }
 
   const code = barcode.trim();
   if (!code) throw new Error("Enter a barcode.");
@@ -53,6 +60,18 @@ export async function scanItem(
       throw new Error(`Cannot check out to a "${order.status}" order. Only ongoing events are eligible.`);
     }
 
+    // Employees may only scan for orders they are assigned to (IDOR fix).
+    if (user.role !== "admin") {
+      const assigned = await db
+        .select({ id: schema.orderAssignments.id })
+        .from(schema.orderAssignments)
+        .where(
+          and(eq(schema.orderAssignments.orderId, orderId), eq(schema.orderAssignments.userId, user.id))
+        )
+        .limit(1);
+      if (!assigned.length) throw new Error("You are not assigned to this order.");
+    }
+
     await db
       .update(schema.items)
       .set({ status: "busy", currentOrderId: orderId })
@@ -83,6 +102,21 @@ export async function scanItem(
   }
 
   if (action === "checkin") {
+    // Employees may only check in items tied to an order they are assigned to.
+    if (user.role !== "admin" && item.currentOrderId) {
+      const assigned = await db
+        .select({ id: schema.orderAssignments.id })
+        .from(schema.orderAssignments)
+        .where(
+          and(
+            eq(schema.orderAssignments.orderId, item.currentOrderId),
+            eq(schema.orderAssignments.userId, user.id)
+          )
+        )
+        .limit(1);
+      if (!assigned.length) throw new Error("You are not assigned to this order.");
+    }
+
     await db
       .update(schema.items)
       .set({ status: "available", currentOrderId: null })
@@ -105,7 +139,21 @@ export async function scanItem(
     return { ok: true, msg: `${item.name} → returned to stock.` };
   }
 
-  // damaged
+  // damaged — employees may only mark damaged for items on their assigned order
+  if (user.role !== "admin" && item.currentOrderId) {
+    const assigned = await db
+      .select({ id: schema.orderAssignments.id })
+      .from(schema.orderAssignments)
+      .where(
+        and(
+          eq(schema.orderAssignments.orderId, item.currentOrderId),
+          eq(schema.orderAssignments.userId, user.id)
+        )
+      )
+      .limit(1);
+    if (!assigned.length) throw new Error("You are not assigned to this order.");
+  }
+
   await db
     .update(schema.items)
     .set({ status: "damaged", currentOrderId: null })

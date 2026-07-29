@@ -19,7 +19,7 @@ async function payloadFromToken(
   if (!token) return null;
   try {
     const secretStr = process.env.AUTH_SECRET;
-    if (!secretStr || secretStr.trim().length < 8) return null;
+    if (!secretStr || secretStr.trim().length < 32) return null;
     const secret = new TextEncoder().encode(secretStr);
     const { payload } = await jwtVerify(token, secret);
     const role = payload.role as "admin" | "employee" | undefined;

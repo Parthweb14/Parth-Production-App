@@ -1,6 +1,6 @@
 // src/app/api/invoice-otp/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { randomInt } from "crypto";
@@ -12,11 +12,26 @@ import { checkRateLimit } from "@/lib/rate-limiter";
 const OTP_EXPIRY = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 const COOKIE_NAME = "kp_inv_access";
+const GENERIC_SEND_ERR = "Unable to send OTP for this request.";
 
 function getSecret(): Uint8Array {
   const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET is required.");
+  if (!s || s.trim().length < 32) throw new Error("AUTH_SECRET is required (min 32 chars).");
   return new TextEncoder().encode(s);
+}
+
+/** Prefer platform IP headers; fall back to rightmost XFF hop (added by proxy). */
+function getClientIp(req: NextRequest): string {
+  const real =
+    req.headers.get("x-real-ip")?.trim() ||
+    req.headers.get("cf-connecting-ip")?.trim() ||
+    req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  const xf = (req.headers.get("x-forwarded-for") || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const ip = real || (xf.length ? xf[xf.length - 1] : "") || "unknown";
+  return ip.slice(0, 64);
 }
 
 export async function POST(req: NextRequest) {
@@ -25,17 +40,45 @@ export async function POST(req: NextRequest) {
     if (!orderId || !email) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
     const normalizedEmail = String(email).toLowerCase().trim();
-    const order = await db.select().from(schema.orders).where(eq(schema.orders.id, Number(orderId))).limit(1).then((r) => r[0]);
-    // Generic error — avoid order-existence / email-match oracles.
-    if (!order) return NextResponse.json({ error: "Unable to send OTP for this request." }, { status: 400 });
-
-    const orderEmail = (order.contactEmail ?? "").toLowerCase().trim();
-    if (normalizedEmail !== orderEmail) {
-      return NextResponse.json({ error: "Unable to send OTP for this request." }, { status: 400 });
+    const oid = Number(orderId);
+    if (!Number.isFinite(oid) || oid <= 0 || !Number.isInteger(oid)) {
+      return NextResponse.json({ error: GENERIC_SEND_ERR }, { status: 400 });
     }
 
+    const ip = getClientIp(req);
+
+    // Rate-limit BEFORE email-match checks so mismatches cannot be used as an oracle.
     if (action === "send_otp") {
-      const key = `otp:${orderId}`;
+      const ipRl = await checkRateLimit(`inv_otp_ip:${ip}:${oid}`, { max: 8, windowMs: 10 * 60 * 1000 });
+      if (!ipRl.allowed) {
+        if (ipRl.dbError) {
+          return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
+        }
+        return NextResponse.json(
+          { error: "Too many OTP requests. Please try again later.", retryAfter: ipRl.retryAfter },
+          { status: 429, headers: ipRl.retryAfter ? { "Retry-After": String(ipRl.retryAfter) } : {} },
+        );
+      }
+    }
+
+    const order = await db
+      .select()
+      .from(schema.orders)
+      .where(and(eq(schema.orders.id, oid), isNull(schema.orders.deletedAt)))
+      .limit(1)
+      .then((r) => r[0]);
+
+    const orderEmail = (order?.contactEmail ?? "").toLowerCase().trim();
+    const emailMatches = Boolean(order && orderEmail && normalizedEmail === orderEmail);
+
+    if (action === "send_otp") {
+      // Identical success response whether email matches or not (anti-enumeration).
+      // Only send mail / store OTP when the contact email actually matches.
+      if (!emailMatches) {
+        return NextResponse.json({ ok: true });
+      }
+
+      const key = `otp:${oid}`;
       const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1).then((r) => r[0]);
       if (existing) {
         let data: { attempts?: number } = {};
@@ -45,7 +88,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Rate-limit with normalized email key.
       const rl = await checkRateLimit(`inv_otp:${normalizedEmail}`, { max: 3, windowMs: 10 * 60 * 1000 });
       if (!rl.allowed) {
         if (rl.dbError) {
@@ -57,9 +99,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // SECURITY FIX: do NOT reset attempts on resend. Preserve the existing
-      // attempt count so the lockout cannot be defeated by simply requesting a
-      // new OTP. Only generate a new OTP code + reset the creation time.
+      // Do NOT reset attempts on resend — preserve lockout.
       const prevAttempts = (() => {
         if (existing) {
           try { return JSON.parse(existing.value).attempts || 0; } catch { return 0; }
@@ -77,8 +117,8 @@ export async function POST(req: NextRequest) {
         await db.insert(schema.settings).values({ key, value });
       }
 
-      const orderNum = formatOrderNumber(order.id, order.createdAt);
-      const safeName = String(order.clientName || "")
+      const orderNum = formatOrderNumber(order!.id, order!.createdAt);
+      const safeName = String(order!.clientName || "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -104,8 +144,12 @@ export async function POST(req: NextRequest) {
 
     if (action === "verify_otp") {
       if (!otp) return NextResponse.json({ error: "OTP is required" }, { status: 400 });
+      if (!emailMatches) {
+        // Same generic failure as wrong OTP — no existence/email oracle.
+        return NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
+      }
 
-      const verifyRl = await checkRateLimit(`otp_verify:${orderId}`, { max: 5, windowMs: 15 * 60 * 1000 });
+      const verifyRl = await checkRateLimit(`otp_verify:${oid}:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
       if (!verifyRl.allowed) {
         if (verifyRl.dbError) {
           return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
@@ -116,11 +160,11 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const key = `otp:${orderId}`;
+      const key = `otp:${oid}`;
       const row = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1).then((r) => r[0]);
       if (!row) return NextResponse.json({ error: "No OTP was sent. Request a new one." }, { status: 400 });
 
-      let data: { otp: string; attempts: number; createdAt: number };
+      let data: { otp: string; attempts: number; createdAt: number; email?: string };
       try { data = JSON.parse(row.value); } catch {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
         return NextResponse.json({ error: "OTP record corrupted. Please request a new one." }, { status: 400 });
@@ -128,6 +172,9 @@ export async function POST(req: NextRequest) {
       if (!data.otp || typeof data.attempts !== "number" || typeof data.createdAt !== "number") {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
         return NextResponse.json({ error: "OTP record invalid. Please request a new one." }, { status: 400 });
+      }
+      if (data.email && data.email !== normalizedEmail) {
+        return NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
       }
       if (data.attempts >= MAX_ATTEMPTS) {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
@@ -148,7 +195,7 @@ export async function POST(req: NextRequest) {
 
       await db.delete(schema.settings).where(eq(schema.settings.key, key));
 
-      const token = await new SignJWT({ orderId: Number(orderId), email: orderEmail, verifiedAt: Date.now() })
+      const token = await new SignJWT({ orderId: oid, email: orderEmail, verifiedAt: Date.now() })
         .setProtectedHeader({ alg: "HS256" })
         .setExpirationTime("24h")
         .sign(getSecret());
@@ -183,7 +230,8 @@ export async function GET(req: NextRequest) {
     const { payload } = await jwtVerify(token, getSecret());
     if (payload.orderId !== orderId) return NextResponse.json({ verified: false });
 
-    return NextResponse.json({ verified: true, email: payload.email });
+    // Do not return email from the cookie — client does not need it for the verify shell.
+    return NextResponse.json({ verified: true });
   } catch {
     return NextResponse.json({ verified: false });
   }

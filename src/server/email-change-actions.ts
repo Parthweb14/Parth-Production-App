@@ -12,7 +12,6 @@ import {
   resolveApprovedFormAccess,
   submitEmailChangeCredentials,
   verifyEmailChangeWithOtp,
-  verifyEmailChangeWithToken,
 } from "@/lib/email-change";
 
 export type EmailChangeActionState = {
@@ -165,10 +164,6 @@ export async function submitEmailChangeCredentialsAction(
     success:
       "Credentials verified. Check your new email for a one-time link and OTP to finish. Your old email stays active until verification.",
   };
-}
-
-export async function verifyEmailChangeTokenAction(token: string) {
-  return verifyEmailChangeWithToken(token);
 }
 
 export async function verifyEmailChangeOtpAction(

@@ -55,20 +55,6 @@ export async function markAllRead() {
     .where(and(eq(schema.notifications.userId, user.id), eq(schema.notifications.read, false)));
 }
 
-export async function createNotification(input: {
-  userId: number;
-  orderId?: number;
-  type: string;
-  title: string;
-  message?: string;
-  link?: string;
-}) {
-  await db.insert(schema.notifications).values({
-    userId: input.userId,
-    orderId: input.orderId ?? null,
-    type: input.type,
-    title: input.title,
-    message: input.message ?? null,
-    link: input.link ?? null,
-  });
-}
+// createNotification is intentionally NOT exported as a server action.
+// Client-callable notification inserts were an injection risk. Server code
+// must use dispatchNotification from "@/server/notification-dispatcher".

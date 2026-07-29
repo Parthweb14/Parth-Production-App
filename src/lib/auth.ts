@@ -51,15 +51,11 @@ export type AuthFailResult = {
 
 function getSecret(): Uint8Array {
   const s = process.env.AUTH_SECRET;
-  if (!s || s.trim().length < 8) {
+  if (!s || s.trim().length < 32) {
     throw new Error(
-      "AUTH_SECRET is required and must be at least 8 characters. Current value length: " +
-        (s ? s.length : "undefined")
-    );
-  }
-  if (s.trim().length < 32) {
-    console.warn(
-      "[auth] AUTH_SECRET is shorter than 32 characters. Generate a stronger secret with: openssl rand -base64 32"
+      "AUTH_SECRET is required and must be at least 32 characters. Current value length: " +
+        (s ? s.length : "undefined") +
+        ". Generate with: openssl rand -base64 32"
     );
   }
   return new TextEncoder().encode(s);
@@ -721,14 +717,13 @@ export async function resetPasswordWithToken(
       .set({ usedAt: new Date() })
       .where(eq(schema.passwordResets.id, resetRow.id));
 
+    // Only update the password (+ revoke sessions). Do NOT set emailVerifiedAt
+    // or active — that would bypass the invite/verify gate for pending users.
     await db
       .update(schema.users)
       .set({
         password: await hashPassword(newPassword),
         mustChangePwd: false,
-        // Completing reset also proves inbox control.
-        emailVerifiedAt: new Date(),
-        active: true,
       })
       .where(eq(schema.users.id, user.id));
     await db

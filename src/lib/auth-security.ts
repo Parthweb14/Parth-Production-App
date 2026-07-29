@@ -48,9 +48,18 @@ export async function equalizeTiming(startedAt: number, minMs: number): Promise<
 export async function getRequestIp(): Promise<string> {
   try {
     const h = await headers();
-    const xf = h.get("x-forwarded-for")?.split(",")[0]?.trim();
-    const real = h.get("x-real-ip")?.trim();
-    const ip = xf || real || "unknown";
+    // Prefer platform-set headers (harder to spoof) over leftmost XFF.
+    const real =
+      h.get("x-real-ip")?.trim() ||
+      h.get("cf-connecting-ip")?.trim() ||
+      h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+    const xfParts = (h.get("x-forwarded-for") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    // Rightmost XFF hop is typically appended by the trusted edge proxy.
+    const xfTrusted = xfParts.length ? xfParts[xfParts.length - 1] : undefined;
+    const ip = real || xfTrusted || xfParts[0] || "unknown";
     return ip.slice(0, 64);
   } catch {
     return "unknown";
@@ -123,7 +132,7 @@ export async function createAuthCaptcha(): Promise<{ id: string; question: strin
   const id = randomBytes(16).toString("hex");
   const answer = String(a + b);
   const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.trim().length < 8) {
+  if (!secret || secret.trim().length < 32) {
     throw new Error("AUTH_SECRET is required for CAPTCHA.");
   }
   await writeJsonSetting(captchaKey(id), {
@@ -141,7 +150,7 @@ export async function verifyAuthCaptcha(id: string, answer: string): Promise<boo
   if (!data || typeof data.hash !== "string" || typeof data.expiresAt !== "number") return false;
   if (Date.now() > data.expiresAt) return false;
   const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.trim().length < 8) return false;
+  if (!secret || secret.trim().length < 32) return false;
   const expected = sha256Hex(`${String(answer).trim()}:${secret}:${id}`);
   return safeEqualHex(expected, data.hash);
 }
