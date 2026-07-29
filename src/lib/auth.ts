@@ -1,5 +1,5 @@
 // src/lib/auth.ts
-import { randomBytes, randomInt, createHash } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { eq, and, isNull, gte, asc } from "drizzle-orm";
@@ -34,6 +34,7 @@ import {
   verifyAuthCaptcha,
 } from "./auth-security";
 import { escapeHtml } from "./escape-html";
+import { getAuthSecretBytes } from "./auth-secret";
 
 const COOKIE = "kp_session";
 const MAX_ADMIN_DEVICES = 2;
@@ -51,15 +52,7 @@ export type AuthFailResult = {
 };
 
 function getSecret(): Uint8Array {
-  const s = process.env.AUTH_SECRET;
-  if (!s || s.trim().length < 32) {
-    throw new Error(
-      "AUTH_SECRET is required and must be at least 32 characters. Current value length: " +
-        (s ? s.length : "undefined") +
-        ". Generate with: openssl rand -base64 32"
-    );
-  }
-  return new TextEncoder().encode(s);
+  return getAuthSecretBytes();
 }
 
 export type SessionUser = {
@@ -434,11 +427,6 @@ export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 12);
 }
 
-function hashResetToken(token: string): string {
-  // Store only a SHA-256 digest of the random secret — never the raw token.
-  return createHash("sha256").update(token).digest("hex");
-}
-
 // ──────────────────────────────────────────────────────────────────────────
 // Forgot Password — OTP via SMTP (anti-enumeration + rate limit + CAPTCHA)
 // ──────────────────────────────────────────────────────────────────────────
@@ -506,12 +494,13 @@ export async function sendForgotOtp(
         set: { value: JSON.stringify({ otp: hashed, expiresAt: Date.now() + OTP_TTL_MS }) },
       });
 
-    try {
-      const { sendEmail } = await import("@/lib/email");
-      await sendEmail({
-        to: normalized,
-        subject: "Password Reset OTP — Parth Production",
-        html: `
+    // Fire-and-forget so SMTP latency cannot reveal account existence.
+    void import("@/lib/email")
+      .then(({ sendEmail }) =>
+        sendEmail({
+          to: normalized,
+          subject: "Password Reset OTP — Parth Production",
+          html: `
       <div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Password Reset Request</h2>
         <p>Hello <strong>${escapeHtml(user.name)}</strong>,</p>
@@ -524,14 +513,9 @@ export async function sendForgotOtp(
         <p style="font-size:12px;color:#6b7280">Parth Production — Professional Event Services</p>
       </div>
     `,
-      });
-    } catch (err) {
-      // Do not reveal mailer failure as "account exists".
-      console.error("[auth] forgot OTP email failed");
-    }
-  } else {
-    // Burn time comparable to a slow SMTP round-trip so missing-email timing matches.
-    await new Promise((r) => setTimeout(r, 600 + randomInt(0, 400)));
+        })
+      )
+      .catch(() => console.error("[auth] forgot OTP email failed"));
   }
 
   await equalizeTiming(started, MIN_FORGOT_MS);
@@ -641,7 +625,7 @@ export async function verifyForgotOtp(
     .where(and(eq(schema.passwordResets.userId, user.id), isNull(schema.passwordResets.usedAt)));
 
   const rawToken = randomBytes(32).toString("hex");
-  const tokenHash = hashResetToken(rawToken);
+  const tokenHash = sha256Hex(rawToken);
   const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
   await db.insert(schema.passwordResets).values({
     userId: user.id,
@@ -681,7 +665,7 @@ export async function resetPasswordWithToken(
     }
     const email = payload.email as string;
     const jti = payload.jti as string;
-    const tokenHash = hashResetToken(jti);
+    const tokenHash = sha256Hex(jti);
 
     const resetRow = await db
       .select()
@@ -862,8 +846,9 @@ export async function changePassword(
   next: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ip = await getRequestIp();
+  const pwdRlUser = await generalRateLimit(`change_pwd_user:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
   const pwdRl = await generalRateLimit(`change_pwd:${userId}:${ip}`, { max: 8, windowMs: 15 * 60 * 1000 });
-  if (!pwdRl.allowed) return { ok: false, error: AUTH_RATE_LIMITED };
+  if (!pwdRlUser.allowed || !pwdRl.allowed) return { ok: false, error: AUTH_RATE_LIMITED };
 
   const user = await db
     .select()

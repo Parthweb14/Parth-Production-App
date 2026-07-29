@@ -58,6 +58,14 @@ async function renderFavicon(input: Buffer, size: number): Promise<Buffer> {
 
 export async function GET(req: NextRequest) {
   try {
+    // Canonical query only — reject cache-bypass / unknown params that force reprocessing.
+    const allowed = new Set(["size", "trim", "h", "v"]);
+    for (const key of req.nextUrl.searchParams.keys()) {
+      if (!allowed.has(key)) {
+        return new NextResponse(null, { status: 400 });
+      }
+    }
+
     const logoUrl = await getSetting("logo_url");
     if (!logoUrl) {
       return new NextResponse(null, { status: 204 });
@@ -89,7 +97,6 @@ export async function GET(req: NextRequest) {
           kernel: sharp.kernel.lanczos3,
           withoutEnlargement: false,
         });
-        // Mild sharpen only when enlarging — reduces soft/blurry upscales from small sources.
         if (height > nativeH) {
           pipeline = pipeline.sharpen({ sigma: 0.7, m1: 0.9, m2: 0.45 });
         }
@@ -101,6 +108,7 @@ export async function GET(req: NextRequest) {
         status: 200,
         headers: {
           "Content-Type": "image/png",
+          // Variant-specific cache key via Vary isn't enough; cache by canonical path+params only.
           "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
         },
       });
@@ -109,7 +117,6 @@ export async function GET(req: NextRequest) {
     const raw = Number(req.nextUrl.searchParams.get("size") || "32");
     const size = ALLOWED.has(raw) ? raw : 32;
 
-    // Square favicon: P mark on dark navy so white artwork is visible in light tabs.
     const png = await renderFavicon(input, size);
 
     return new NextResponse(new Uint8Array(png), {

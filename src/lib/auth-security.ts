@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from "crypto";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { db, schema } from "./db";
+import { clientIpFromHeaders } from "./request-ip";
 
 /** Identical failure copy — never reveal whether the email exists. */
 export const AUTH_GENERIC_FAIL = "Invalid Credentials";
@@ -48,19 +49,7 @@ export async function equalizeTiming(startedAt: number, minMs: number): Promise<
 export async function getRequestIp(): Promise<string> {
   try {
     const h = await headers();
-    // Prefer platform-set headers (harder to spoof) over leftmost XFF.
-    const real =
-      h.get("x-real-ip")?.trim() ||
-      h.get("cf-connecting-ip")?.trim() ||
-      h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
-    const xfParts = (h.get("x-forwarded-for") || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    // Rightmost XFF hop is typically appended by the trusted edge proxy.
-    const xfTrusted = xfParts.length ? xfParts[xfParts.length - 1] : undefined;
-    const ip = real || xfTrusted || xfParts[0] || "unknown";
-    return ip.slice(0, 64);
+    return clientIpFromHeaders(h);
   } catch {
     return "unknown";
   }

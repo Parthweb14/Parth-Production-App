@@ -9,30 +9,17 @@ import { sendEmail } from "@/lib/email";
 import { formatOrderNumber } from "@/lib/invoice-number";
 import { escapeHtml } from "@/lib/escape-html";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { clientIpFromHeaders } from "@/lib/request-ip";
+import { getAuthSecretBytes } from "@/lib/auth-secret";
 
 const OTP_EXPIRY = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 const COOKIE_NAME = "kp_inv_access";
 const GENERIC_SEND_ERR = "Unable to send OTP for this request.";
+const OK = NextResponse.json({ ok: true });
 
-function getSecret(): Uint8Array {
-  const s = process.env.AUTH_SECRET;
-  if (!s || s.trim().length < 32) throw new Error("AUTH_SECRET is required (min 32 chars).");
-  return new TextEncoder().encode(s);
-}
-
-/** Prefer platform IP headers; fall back to rightmost XFF hop (added by proxy). */
 function getClientIp(req: NextRequest): string {
-  const real =
-    req.headers.get("x-real-ip")?.trim() ||
-    req.headers.get("cf-connecting-ip")?.trim() ||
-    req.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
-  const xf = (req.headers.get("x-forwarded-for") || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const ip = real || (xf.length ? xf[xf.length - 1] : "") || "unknown";
-  return ip.slice(0, 64);
+  return clientIpFromHeaders(req.headers);
 }
 
 export async function POST(req: NextRequest) {
@@ -48,16 +35,30 @@ export async function POST(req: NextRequest) {
 
     const ip = getClientIp(req);
 
-    // Rate-limit BEFORE email-match checks so mismatches cannot be used as an oracle.
+    // Global IP ceiling first — prevents unbounded settings-row growth via fake orderIds.
     if (action === "send_otp") {
-      const ipRl = await checkRateLimit(`inv_otp_ip:${ip}:${oid}`, { max: 8, windowMs: 10 * 60 * 1000 });
-      if (!ipRl.allowed) {
-        if (ipRl.dbError) {
+      const globalIp = await checkRateLimit(`inv_otp_global_ip:${ip}`, { max: 20, windowMs: 10 * 60 * 1000 });
+      if (!globalIp.allowed) {
+        if (globalIp.dbError) {
           return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
         }
         return NextResponse.json(
-          { error: "Too many OTP requests. Please try again later.", retryAfter: ipRl.retryAfter },
-          { status: 429, headers: ipRl.retryAfter ? { "Retry-After": String(ipRl.retryAfter) } : {} },
+          { error: "Too many OTP requests. Please try again later.", retryAfter: globalIp.retryAfter },
+          { status: 429, headers: globalIp.retryAfter ? { "Retry-After": String(globalIp.retryAfter) } : {} },
+        );
+      }
+    }
+
+    if (action === "verify_otp") {
+      if (!otp) return NextResponse.json({ error: "OTP is required" }, { status: 400 });
+      const globalIp = await checkRateLimit(`otp_verify_global_ip:${ip}`, { max: 30, windowMs: 15 * 60 * 1000 });
+      if (!globalIp.allowed) {
+        if (globalIp.dbError) {
+          return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
+        }
+        return NextResponse.json(
+          { error: "Too many verification attempts. Please try again later.", retryAfter: globalIp.retryAfter },
+          { status: 429, headers: globalIp.retryAfter ? { "Retry-After": String(globalIp.retryAfter) } : {} },
         );
       }
     }
@@ -73,20 +74,30 @@ export async function POST(req: NextRequest) {
     const emailMatches = Boolean(order && orderEmail && normalizedEmail === orderEmail);
 
     if (action === "send_otp") {
-      // Identical success response whether email matches or not (anti-enumeration).
-      // Only send mail / store OTP when the contact email actually matches.
-      if (!emailMatches) {
-        return NextResponse.json({ ok: true });
+      // Per-order IP limit only after confirming the order exists (no fake-id settings spam).
+      if (order) {
+        const ipRl = await checkRateLimit(`inv_otp_ip:${ip}:${oid}`, { max: 8, windowMs: 10 * 60 * 1000 });
+        if (!ipRl.allowed) {
+          if (ipRl.dbError) {
+            return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
+          }
+          return NextResponse.json(
+            { error: "Too many OTP requests. Please try again later.", retryAfter: ipRl.retryAfter },
+            { status: 429, headers: ipRl.retryAfter ? { "Retry-After": String(ipRl.retryAfter) } : {} },
+          );
+        }
       }
+
+      // Anti-enumeration: always { ok: true } for mismatch, lockout, and mailer issues.
+      if (!emailMatches) return OK;
 
       const key = `otp:${oid}`;
       const existing = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1).then((r) => r[0]);
       if (existing) {
         let data: { attempts?: number } = {};
         try { data = JSON.parse(existing.value); } catch { data = { attempts: 0 }; }
-        if ((data.attempts || 0) >= MAX_ATTEMPTS) {
-          return NextResponse.json({ error: "Too many OTP attempts. Please try again later." }, { status: 429 });
-        }
+        // Same success body as mismatch — do not reveal lockout on send.
+        if ((data.attempts || 0) >= MAX_ATTEMPTS) return OK;
       }
 
       const rl = await checkRateLimit(`inv_otp:${normalizedEmail}`, { max: 3, windowMs: 10 * 60 * 1000 });
@@ -94,13 +105,10 @@ export async function POST(req: NextRequest) {
         if (rl.dbError) {
           return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
         }
-        return NextResponse.json(
-          { error: "Too many OTP requests. Please try again later.", retryAfter: rl.retryAfter },
-          { status: 429, headers: rl.retryAfter ? { "Retry-After": String(rl.retryAfter) } : {} },
-        );
+        // Equal response for spray vs mismatch — avoid email existence oracle via 429.
+        return OK;
       }
 
-      // Do NOT reset attempts on resend — preserve lockout.
       const prevAttempts = (() => {
         if (existing) {
           try { return JSON.parse(existing.value).attempts || 0; } catch { return 0; }
@@ -120,7 +128,8 @@ export async function POST(req: NextRequest) {
 
       const orderNum = formatOrderNumber(order!.id, order!.createdAt);
       const safeName = escapeHtml(order!.clientName || "");
-      await sendEmail({
+      // Fire-and-forget so SMTP latency cannot distinguish match vs mismatch.
+      void sendEmail({
         to: normalizedEmail,
         subject: `Your OTP for Invoice ${orderNum} — Parth Production`,
         html: `
@@ -134,24 +143,24 @@ export async function POST(req: NextRequest) {
             <p style="font-size:12px;color:#94a3b8">If you did not request this, please ignore this email.</p>
           </div>
         `,
-      });
+      }).catch((err) => console.error("Invoice OTP email error:", err));
 
-      return NextResponse.json({ ok: true });
+      return OK;
     }
 
     if (action === "verify_otp") {
-      if (!otp) return NextResponse.json({ error: "OTP is required" }, { status: 400 });
-
-      // Rate-limit BEFORE email/OTP oracle checks.
-      const verifyRl = await checkRateLimit(`otp_verify:${oid}:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
-      if (!verifyRl.allowed) {
-        if (verifyRl.dbError) {
-          return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
+      // Per-order verify bucket only for real orders.
+      if (order) {
+        const verifyRl = await checkRateLimit(`otp_verify:${oid}:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
+        if (!verifyRl.allowed) {
+          if (verifyRl.dbError) {
+            return NextResponse.json({ error: "Server temporarily unavailable. Please try again." }, { status: 503 });
+          }
+          return NextResponse.json(
+            { error: "Too many verification attempts. Please try again later.", retryAfter: verifyRl.retryAfter },
+            { status: 429, headers: verifyRl.retryAfter ? { "Retry-After": String(verifyRl.retryAfter) } : {} },
+          );
         }
-        return NextResponse.json(
-          { error: "Too many verification attempts. Please try again later.", retryAfter: verifyRl.retryAfter },
-          { status: 429, headers: verifyRl.retryAfter ? { "Retry-After": String(verifyRl.retryAfter) } : {} },
-        );
       }
 
       const INVALID = NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
@@ -173,15 +182,14 @@ export async function POST(req: NextRequest) {
       if (data.email && data.email !== normalizedEmail) return INVALID;
       if (data.attempts >= MAX_ATTEMPTS) {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
-        return NextResponse.json({ error: "Too many failed attempts. Request a new OTP." }, { status: 429 });
+        return INVALID;
       }
 
       if (Date.now() - data.createdAt > OTP_EXPIRY) {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
-        return NextResponse.json({ error: "OTP has expired. Request a new one." }, { status: 410 });
+        return INVALID;
       }
 
-      // Increment attempts before compare (optimistic CAS) so parallel guesses cannot share a free slot.
       const nextAttempts = data.attempts + 1;
       const attemptedValue = JSON.stringify({ ...data, attempts: nextAttempts });
       const cas = await db
@@ -199,7 +207,7 @@ export async function POST(req: NextRequest) {
       const token = await new SignJWT({ orderId: oid, email: orderEmail, verifiedAt: Date.now() })
         .setProtectedHeader({ alg: "HS256" })
         .setExpirationTime("24h")
-        .sign(getSecret());
+        .sign(getAuthSecretBytes());
 
       const res = NextResponse.json({ ok: true });
       res.cookies.set(COOKIE_NAME, token, {
@@ -228,10 +236,9 @@ export async function GET(req: NextRequest) {
     const token = req.cookies.get(COOKIE_NAME)?.value;
     if (!token) return NextResponse.json({ verified: false });
 
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, getAuthSecretBytes());
     if (payload.orderId !== orderId) return NextResponse.json({ verified: false });
 
-    // Do not return email from the cookie — client does not need it for the verify shell.
     return NextResponse.json({ verified: true });
   } catch {
     return NextResponse.json({ verified: false });

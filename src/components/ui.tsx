@@ -10,12 +10,11 @@ export function Button({
   size = "md",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "success" | "warning" | "danger" | "info" | "dark" | "outline" | "ghost";
-  size?: "sm" | "md" | "lg" | "icon";
+  variant?: "primary" | "success" | "warning" | "danger" | "info" | "dark" | "outline" | "ghost";
+  size?: "sm" | "md";
 }) {
   const variants: Record<string, string> = {
     primary: "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white shadow-sm",
-    secondary: "bg-gray-500 hover:bg-gray-600 text-white dark:bg-gray-600 dark:hover:bg-gray-500",
     success: "bg-kp-success hover:bg-emerald-700 text-white",
     warning: "bg-kp-warning hover:bg-amber-600 text-white",
     danger: "bg-kp-danger hover:bg-red-700 text-white",
@@ -27,8 +26,6 @@ export function Button({
   const sizes: Record<string, string> = {
     sm: "h-8 px-3 text-sm",
     md: "h-10 px-4 text-sm",
-    lg: "h-12 px-6 text-base",
-    icon: "h-10 w-10",
   };
   return (
     <button

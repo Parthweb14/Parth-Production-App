@@ -13,19 +13,11 @@ type Access = {
   requestId: string;
   currentEmail: string;
   requestedNewEmail: string | null;
-  accessToken?: string;
   accessOtp?: string;
 };
 
-export function EmailChangeCompleteView({
-  initialAccess,
-  tokenFromUrl,
-}: {
-  initialAccess: Access | null;
-  tokenFromUrl?: string;
-  initialError?: string;
-}) {
-  const [access, setAccess] = useState<Access | null>(initialAccess);
+export function EmailChangeCompleteView() {
+  const [access, setAccess] = useState<Access | null>(null);
   const [otpState, otpAction, otpPending] = useActionState(
     async (prev: EmailChangeActionState, fd: FormData) => {
       const res = await openEmailChangeFormWithOtpAction(prev, fd);
@@ -90,9 +82,6 @@ export function EmailChangeCompleteView({
       </p>
       <form action={credAction} className="space-y-4">
         <input type="hidden" name="requestId" value={access.requestId} />
-        {access.accessToken || tokenFromUrl ? (
-          <input type="hidden" name="accessToken" value={access.accessToken || tokenFromUrl} />
-        ) : null}
         {access.accessOtp ? <input type="hidden" name="accessOtp" value={access.accessOtp} /> : null}
         <div>
           <Label>Current email</Label>

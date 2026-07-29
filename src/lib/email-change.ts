@@ -1,6 +1,6 @@
 // src/lib/email-change.ts
 // Secure email-change flows: admin (logged-in + OTP) and employee (request → approve → form → verify).
-import { randomBytes, randomInt, createHash } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { db, schema } from "./db";
@@ -28,17 +28,13 @@ import { checkRateLimit as generalRateLimit } from "./rate-limiter";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Form-access + new-email verification window. */
-export const EMAIL_CHANGE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const EMAIL_CHANGE_TTL_MS = 60 * 60 * 1000; // 1 hour
 /** Pending employee request waiting for admin approval. */
-export const EMAIL_CHANGE_REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EMAIL_CHANGE_REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Identical copy whether the new address is free or already registered. */
-export const EMAIL_CHANGE_START_OK =
+const EMAIL_CHANGE_START_OK =
   "If that address is available, a one-time code was sent. Check the inbox and enter the OTP below.";
-
-function sha256(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex");
-}
 
 function appBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_BASE_URL || "https://parth-production-app.vercel.app").replace(/\/$/, "");
@@ -170,11 +166,15 @@ export async function adminStartEmailChange(input: {
 
   // Always bcrypt-compare for timing parity on wrong password.
   const ip = await getRequestIp();
+  const pwdRlUser = await generalRateLimit(`admin_email_change_pwd_user:${admin.id}`, {
+    max: 10,
+    windowMs: 15 * 60 * 1000,
+  });
   const pwdRl = await generalRateLimit(`admin_email_change_pwd:${admin.id}:${ip}`, {
     max: 8,
     windowMs: 15 * 60 * 1000,
   });
-  if (!pwdRl.allowed) {
+  if (!pwdRlUser.allowed || !pwdRl.allowed) {
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: await createAuthCaptcha() };
   }
@@ -237,7 +237,7 @@ export async function adminStartEmailChange(input: {
     pendingNewEmail: newEmail,
     status: "pending",
     verifyOtpHash: await bcrypt.hash(otp, 12),
-    verifyTokenHash: sha256(verifyToken),
+    verifyTokenHash: sha256Hex(verifyToken),
     verifyExpiresAt: expiresAt,
     expiresAt,
   });
@@ -475,7 +475,7 @@ export async function adminApproveEmailChange(adminId: number, requestId: string
       status: "approved",
       approvedBy: adminId,
       approvedAt: new Date(),
-      formTokenHash: sha256(formToken),
+      formTokenHash: sha256Hex(formToken),
       formTokenExpiresAt: formExpires,
       formOtpHash: await bcrypt.hash(formOtp, 12),
       expiresAt: formExpires,
@@ -545,7 +545,7 @@ export async function resolveApprovedFormAccess(input: {
 
   if (input.token) {
     // Legacy path: accept token if somehow provided, compare with timing-safe hex equality.
-    const hash = sha256(input.token);
+    const hash = sha256Hex(input.token);
     const candidates = await db
       .select()
       .from(schema.emailChangeRequests)
@@ -643,7 +643,7 @@ export async function submitEmailChangeCredentials(input: {
   }
 
   let accessOk = false;
-  if (input.accessToken && row.formTokenHash && safeEqualHex(row.formTokenHash, sha256(input.accessToken))) {
+  if (input.accessToken && row.formTokenHash && safeEqualHex(row.formTokenHash, sha256Hex(input.accessToken))) {
     accessOk = true;
   }
   if (!accessOk && input.accessOtp && row.formOtpHash) {
@@ -669,11 +669,15 @@ export async function submitEmailChangeCredentials(input: {
   }
   // Rate-limit current-password attempts from stolen sessions.
   const ip = await getRequestIp();
+  const pwdRlUser = await generalRateLimit(`email_change_pwd_user:${user.id}`, {
+    max: 10,
+    windowMs: 15 * 60 * 1000,
+  });
   const pwdRl = await generalRateLimit(`email_change_pwd:${user.id}:${ip}`, {
     max: 8,
     windowMs: 15 * 60 * 1000,
   });
-  if (!pwdRl.allowed) {
+  if (!pwdRlUser.allowed || !pwdRl.allowed) {
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: AUTH_RATE_LIMITED };
   }
@@ -706,7 +710,7 @@ export async function submitEmailChangeCredentials(input: {
       formTokenUsedAt: new Date(),
       pendingNewEmail: newEmail,
       pendingPasswordHash,
-      verifyTokenHash: sha256(verifyToken),
+      verifyTokenHash: sha256Hex(verifyToken),
       verifyOtpHash: await bcrypt.hash(verifyOtp, 12),
       verifyExpiresAt: verifyExpires,
       expiresAt: verifyExpires,
@@ -761,7 +765,7 @@ async function finalizeNewEmailVerification(
   }
 
   let ok = false;
-  if (proof.token && row.verifyTokenHash && safeEqualHex(row.verifyTokenHash, sha256(proof.token))) {
+  if (proof.token && row.verifyTokenHash && safeEqualHex(row.verifyTokenHash, sha256Hex(proof.token))) {
     ok = true;
   }
   if (!ok && proof.otp && row.verifyOtpHash) ok = await bcrypt.compare(proof.otp, row.verifyOtpHash);

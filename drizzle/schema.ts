@@ -6,7 +6,6 @@ import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-or
 
 // Roles (2 only — matches PHP exactly)
 export const ROLES = ["admin", "employee"] as const;
-export type Role = (typeof ROLES)[number];
 
 // Item status (PHP uses 'busy', NOT 'on_event' — preserved)
 export const ITEM_STATUS = ["available", "busy", "damaged"] as const;
@@ -18,11 +17,9 @@ export type OrderStatus = (typeof ORDER_STATUS)[number];
 
 // Finance type (PHP uses 'income'/'expense' — NOT renamed)
 export const FINANCE_TYPE = ["income", "expense"] as const;
-export type FinanceType = (typeof FINANCE_TYPE)[number];
 
 // Improvement #6 — order event categories
 export const EVENT_CATEGORIES = ["Wedding", "Barrat", "Corporate Events", "Festival", "Other"] as const;
-export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 
 // ──────────────────────────────────────────────────────────────────────────
 // Users & Auth
@@ -344,7 +341,6 @@ export const EMAIL_CHANGE_STATUS = [
   "cancelled",
   "expired",
 ] as const;
-export type EmailChangeStatus = (typeof EMAIL_CHANGE_STATUS)[number];
 
 export const emailChangeRequests = sqliteTable(
   "email_change_requests",
