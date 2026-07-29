@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getMutableUser } from "@/lib/auth";
 import {
   adminApproveEmailChange,
   adminConfirmEmailChangeOtp,
@@ -27,7 +27,7 @@ export async function adminStartEmailChangeAction(
   _prev: EmailChangeActionState,
   formData: FormData
 ): Promise<EmailChangeActionState> {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user || user.role !== "admin") {
     return { error: "Admin access required." };
   }
@@ -58,7 +58,7 @@ export async function adminConfirmEmailChangeAction(
   _prev: EmailChangeActionState,
   formData: FormData
 ): Promise<EmailChangeActionState> {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user || user.role !== "admin") {
     return { error: "Admin access required." };
   }
@@ -81,7 +81,7 @@ export async function employeeRequestEmailChangeAction(
   _prev: EmailChangeActionState,
   formData: FormData
 ): Promise<EmailChangeActionState> {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user || user.role !== "employee") {
     return { error: "Employees only. Admins change email from the admin form." };
   }
@@ -96,7 +96,7 @@ export async function employeeRequestEmailChangeAction(
 }
 
 export async function approveEmailChangeAction(formData: FormData) {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user || user.role !== "admin") throw new Error("Unauthorized");
 
   const requestId = String(formData.get("requestId") || "");
@@ -106,7 +106,7 @@ export async function approveEmailChangeAction(formData: FormData) {
 }
 
 export async function rejectEmailChangeAction(formData: FormData) {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user || user.role !== "admin") throw new Error("Unauthorized");
 
   const requestId = String(formData.get("requestId") || "");

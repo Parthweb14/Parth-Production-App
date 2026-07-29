@@ -64,8 +64,3 @@ export async function getSmtpCredentials() {
     from: from ?? "",
   };
 }
-
-/** @deprecated Prefer getSmtpSettingsPublic / getSmtpCredentials */
-export async function getSmtpSettings() {
-  return getSmtpSettingsPublic();
-}

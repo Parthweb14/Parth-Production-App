@@ -87,7 +87,7 @@ export function EmployeesView({ employees }: { employees: Emp[] }) {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap justify-end gap-2">
                         <EditBtn onClick={() => setEditTarget(e)} />
-                        <ToggleBtn id={e.id} name={e.name} active={e.active} onError={setErrMsg} />
+                        <ToggleBtn id={e.id} active={e.active} onError={setErrMsg} />
                         <ResetBtn onOpen={() => setResetTarget({ id: e.id, name: e.name })} />
                         <DeleteBtn id={e.id} name={e.name} onError={setErrMsg} />
                       </div>
@@ -136,7 +136,7 @@ function AddModal({ onClose, onError }: { onClose: () => void; onError: (msg: st
   );
 }
 
-function ToggleBtn({ id, name, active, onError }: { id: number; name: string; active: boolean; onError: (msg: string) => void }) {
+function ToggleBtn({ id, active, onError }: { id: number; active: boolean; onError: (msg: string) => void }) {
   const [pending, setPending] = useState(false);
   return <Button size="sm" variant="outline" disabled={pending} onClick={async () => { setPending(true); try { await toggleEmployeeActive(id); } catch (err) { onError((err as Error).message); } finally { setPending(false); } }}>{pending ? "…" : active ? "Deactivate" : "Reactivate"}</Button>;
 }

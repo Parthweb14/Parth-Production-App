@@ -1,7 +1,7 @@
 // src/app/(dashboard)/error.tsx
 "use client";
 import Link from "next/link";
-export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function DashboardError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <div className="flex min-h-[50vh] items-center justify-center p-8">
       <div className="max-w-md text-center">

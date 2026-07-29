@@ -40,7 +40,3 @@ export function decryptSecret(stored: string | null | undefined): string {
     return "";
   }
 }
-
-export function isEncryptedSecret(stored: string | null | undefined): boolean {
-  return Boolean(stored && stored.startsWith(PREFIX));
-}

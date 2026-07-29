@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto-secret";
-import { getSetting } from "@/lib/settings";
 
 async function upsertSetting(key: string, value: string) {
   await db

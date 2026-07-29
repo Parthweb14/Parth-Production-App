@@ -31,8 +31,3 @@ function cycleToLetters(n: number): string {
   }
   return letters;
 }
-
-// Backward-compatible alias
-export function invoiceNumber(orderId: number, createdAt?: Date | string | number): string {
-  return formatOrderNumber(orderId, createdAt);
-}

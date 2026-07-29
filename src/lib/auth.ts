@@ -33,6 +33,7 @@ import {
   sha256Hex,
   verifyAuthCaptcha,
 } from "./auth-security";
+import { escapeHtml } from "./escape-html";
 
 const COOKIE = "kp_session";
 const MAX_ADMIN_DEVICES = 2;
@@ -59,16 +60,6 @@ function getSecret(): Uint8Array {
     );
   }
   return new TextEncoder().encode(s);
-}
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 export type SessionUser = {
@@ -217,16 +208,19 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   return verify(token);
 }
 
-/** Require an authenticated user, else redirect to /login. */
-export async function requireUser(): Promise<SessionUser> {
+/**
+ * Current user allowed to mutate app data.
+ * Forced-password-change sessions may only use change-password / logout.
+ */
+export async function getMutableUser(): Promise<SessionUser | null> {
   const u = await getCurrentUser();
-  if (!u) throw new Error("UNAUTHENTICATED");
+  if (!u || u.mustChangePwd) return null;
   return u;
 }
 
-/** Require an admin; otherwise return null so pages can redirect. */
+/** Require an admin who may mutate data; otherwise return null. */
 export async function requireAdmin(): Promise<SessionUser | null> {
-  const u = await getCurrentUser();
+  const u = await getMutableUser();
   if (!u || u.role !== "admin") return null;
   return u;
 }
@@ -867,6 +861,10 @@ export async function changePassword(
   current: string,
   next: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ip = await getRequestIp();
+  const pwdRl = await generalRateLimit(`change_pwd:${userId}:${ip}`, { max: 8, windowMs: 15 * 60 * 1000 });
+  if (!pwdRl.allowed) return { ok: false, error: AUTH_RATE_LIMITED };
+
   const user = await db
     .select()
     .from(schema.users)
@@ -874,9 +872,13 @@ export async function changePassword(
     .limit(1)
     .then((r) => r[0]);
   if (!user) return { ok: false, error: "User not found" };
+  if (user.active === false) return { ok: false, error: "Account is inactive." };
   if (current === next) return { ok: false, error: "New password must be different from the current password." };
   if (next.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
-  if (!(await bcrypt.compare(current, user.password))) return { ok: false, error: "Current password is incorrect" };
+  if (!(await bcrypt.compare(current, user.password))) {
+    await recordAuthFailure(authBucket("change_pwd", user.email, ip));
+    return { ok: false, error: "Current password is incorrect" };
+  }
   await db
     .update(schema.users)
     .set({ password: await hashPassword(next), mustChangePwd: false })

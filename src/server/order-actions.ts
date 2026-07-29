@@ -3,23 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { getCurrentUser, requireAdmin } from "@/lib/auth";
+import { getMutableUser, requireAdmin } from "@/lib/auth";
 import { dispatchNotification } from "./notification-dispatcher";
 import { EVENT_CATEGORIES } from "@/drizzle/schema";
 import type { OrderStatus } from "@/drizzle/schema";
 import { formatOrderNumber } from "@/lib/invoice-number";
 import { formatINR } from "@/lib/utils";
 import { sendEmail } from "@/lib/email";
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "@/lib/escape-html";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   upcoming: ["ongoing", "completed", "cancelled"],
@@ -452,7 +443,7 @@ export async function unreserveItem(orderId: number, itemId: number) {
 }
 
 export async function markSetupDone(orderId: number) {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user) throw new Error("Unauthorized");
 
   const [order] = await db

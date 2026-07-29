@@ -55,14 +55,3 @@ export async function dispatchNotification(input: NotifyInput) {
     }
   }
 }
-
-const IMPORTANT_TYPES = new Set([
-  "password_reset",
-  "account_created",
-  "team_assigned",
-  "setup_done",
-]);
-
-export function isImportant(type: string): boolean {
-  return IMPORTANT_TYPES.has(type);
-}

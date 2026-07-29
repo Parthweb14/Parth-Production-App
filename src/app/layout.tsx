@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { ThemeProviderWrapper } from "@/components/ThemeProviderWrapper";
+import { ThemeProvider } from "@/lib/theme";
 import { AgentationProvider } from "@/components/AgentationProvider";
 import "./globals.css";
 export const metadata: Metadata = {
@@ -50,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <ThemeProviderWrapper>{children}</ThemeProviderWrapper>
+        <ThemeProvider>{children}</ThemeProvider>
         <AgentationProvider />
       </body>
     </html>

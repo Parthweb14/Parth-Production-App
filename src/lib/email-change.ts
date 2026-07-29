@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { db, schema } from "./db";
 import { hashPassword } from "./auth";
 import { sendEmail } from "./email";
+import { escapeHtml } from "./escape-html";
 import {
   AUTH_EMAIL_CHANGE_UNAVAILABLE,
   AUTH_RATE_LIMITED,
@@ -34,16 +35,6 @@ export const EMAIL_CHANGE_REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Identical copy whether the new address is free or already registered. */
 export const EMAIL_CHANGE_START_OK =
   "If that address is available, a one-time code was sent. Check the inbox and enter the OTP below.";
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function sha256(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
@@ -178,8 +169,18 @@ export async function adminStartEmailChange(input: {
   }
 
   // Always bcrypt-compare for timing parity on wrong password.
+  const ip = await getRequestIp();
+  const pwdRl = await generalRateLimit(`admin_email_change_pwd:${admin.id}:${ip}`, {
+    max: 8,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!pwdRl.allowed) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: await createAuthCaptcha() };
+  }
   const pwdOk = await bcrypt.compare(input.currentPassword, admin.password);
   if (!pwdOk) {
+    await recordAuthFailure(authBucket("admin_email_change_pwd", admin.email, ip));
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Current password is incorrect." };
   }
@@ -321,6 +322,10 @@ export async function employeeRequestEmailChange(input: {
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Unauthorized." };
   }
+  if (user.active === false) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Account is inactive." };
+  }
 
   const requested = (input.requestedNewEmail || "").toLowerCase().trim();
   if (requested) {
@@ -332,9 +337,8 @@ export async function employeeRequestEmailChange(input: {
       await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
       return { ok: false, error: "New email must be different." };
     }
-    await releaseStaleEmailClaim(requested, user.id);
-    // Never reveal whether the address is taken — still accept the request;
-    // admin approval + final verification re-check ownership.
+    // Do NOT release stale invites from employee-controlled requests (IDOR).
+    // Reclaim happens only after proven ownership at final verification / admin start.
   }
 
   const open = await db
@@ -533,6 +537,10 @@ export async function resolveApprovedFormAccess(input: {
   | { ok: true; requestId: string; currentEmail: string; requestedNewEmail: string | null }
   | { ok: false; error: string }
 > {
+  const ip = await getRequestIp();
+  const rl = await generalRateLimit(`email_change_form_access:${ip}`, { max: 10, windowMs: 15 * 60 * 1000 });
+  if (!rl.allowed) return { ok: false, error: AUTH_RATE_LIMITED };
+
   let row: typeof schema.emailChangeRequests.$inferSelect | undefined;
 
   if (input.token) {
@@ -547,6 +555,12 @@ export async function resolveApprovedFormAccess(input: {
     row = candidates.find((c) => c.formTokenHash && safeEqualHex(c.formTokenHash, hash));
   } else if (input.email && input.otp) {
     const email = input.email.toLowerCase().trim();
+    const emailRl = await generalRateLimit(`email_change_form_otp:${sha256Hex(email).slice(0, 24)}`, {
+      max: 8,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!emailRl.allowed) return { ok: false, error: AUTH_RATE_LIMITED };
+
     const candidates = await db
       .select()
       .from(schema.emailChangeRequests)
@@ -645,11 +659,26 @@ export async function submitEmailChangeCredentials(input: {
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Invalid request." };
   }
+  if (user.active === false) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: "Account is inactive." };
+  }
   if (user.email.toLowerCase() !== currentEmail || row.currentEmail.toLowerCase() !== currentEmail) {
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Current email does not match this account." };
   }
+  // Rate-limit current-password attempts from stolen sessions.
+  const ip = await getRequestIp();
+  const pwdRl = await generalRateLimit(`email_change_pwd:${user.id}:${ip}`, {
+    max: 8,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!pwdRl.allowed) {
+    await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
+    return { ok: false, error: AUTH_RATE_LIMITED };
+  }
   if (!(await bcrypt.compare(input.currentPassword, user.password))) {
+    await recordAuthFailure(authBucket("email_change_pwd", currentEmail, ip));
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
     return { ok: false, error: "Current password is incorrect." };
   }
@@ -658,7 +687,7 @@ export async function submitEmailChangeCredentials(input: {
     return { ok: false, error: "New email must be different." };
   }
 
-  await releaseStaleEmailClaim(newEmail, user.id);
+  // Reclaim only at finalization after new-inbox OTP — not here.
   if (await emailTaken(newEmail, user.id)) {
     // Generic — do not say "already in use".
     await equalizeTiming(started, MIN_EMAIL_CHANGE_MS);
@@ -748,17 +777,17 @@ async function finalizeNewEmailVerification(
 
   const user = await getUser(row.userId);
   if (!user) return { ok: false, error: "User not found." };
+  // Deactivated accounts must not self-reactivate via email change.
+  if (user.active === false) return { ok: false, error: "Account is inactive." };
 
   const patch: {
     email: string;
     password?: string;
     emailVerifiedAt: Date;
-    active: boolean;
     updatedAt: Date;
   } = {
     email: newEmail,
     emailVerifiedAt: new Date(),
-    active: true,
     updatedAt: new Date(),
   };
   if (row.pendingPasswordHash) patch.password = row.pendingPasswordHash;
@@ -781,18 +810,6 @@ async function finalizeNewEmailVerification(
     .where(and(eq(schema.sessions.userId, row.userId), isNull(schema.sessions.revokedAt)));
 
   return { ok: true };
-}
-
-export async function verifyEmailChangeWithToken(token: string) {
-  // Prefer not to use URL tokens; kept for safeEqualHex-verified legacy links only.
-  const hash = sha256(token);
-  const candidates = await db
-    .select()
-    .from(schema.emailChangeRequests)
-    .orderBy(desc(schema.emailChangeRequests.updatedAt))
-    .limit(30);
-  const row = candidates.find((r) => r.verifyTokenHash && safeEqualHex(r.verifyTokenHash, hash));
-  return finalizeNewEmailVerification(row, { token });
 }
 
 export async function verifyEmailChangeWithOtp(input: {

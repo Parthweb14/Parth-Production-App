@@ -6,7 +6,6 @@ import { eq, and, isNull } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { db, schema } from "@/lib/db";
 import { formatOrderNumber } from "@/lib/invoice-number";
-import { formatINR } from "@/lib/utils";
 import { getGstSettings } from "@/lib/settings";
 
 const COOKIE_NAME = "kp_inv_access";

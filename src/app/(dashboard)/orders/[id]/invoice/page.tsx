@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatOrderNumber } from "@/lib/invoice-number";
@@ -13,10 +13,18 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   if (!user) return null;
   const { id } = await params;
 
-  const order = await db.select().from(schema.orders).where(eq(schema.orders.id, Number(id))).limit(1).then((r) => r[0]);
+  const order = await db
+    .select()
+    .from(schema.orders)
+    .where(and(eq(schema.orders.id, Number(id)), isNull(schema.orders.deletedAt)))
+    .limit(1)
+    .then((r) => r[0]);
   if (!order) notFound();
 
-  const txns = await db.select().from(schema.finance).where(eq(schema.finance.orderId, Number(id)));
+  const txns = await db
+    .select()
+    .from(schema.finance)
+    .where(and(eq(schema.finance.orderId, Number(id)), isNull(schema.finance.deletedAt)));
   const paid = txns.filter((t) => t.type === "income").reduce((a, t) => a + Number(t.amount), 0);
   const total = Number(order.totalBudget);
 

@@ -190,18 +190,3 @@ export async function toggleEmployeeActive(userId: number) {
   }
   revalidatePath("/employees");
 }
-
-export async function listEmployees() {
-  const user = await requireAdmin();
-  if (!user) throw new Error("Unauthorized");
-  return db
-    .select({
-      id: schema.users.id,
-      name: schema.users.name,
-      email: schema.users.email,
-      phone: schema.users.phone,
-      active: schema.users.active,
-    })
-    .from(schema.users)
-    .where(and(eq(schema.users.role, "employee"), isNull(schema.users.deletedAt)));
-}

@@ -124,7 +124,6 @@ function WorkforceSection({ orderId, assigned, employees, teams }: { orderId: nu
   const [search, setSearch] = useState("");
   const [pending, setPending] = useState(false);
   const assignedIds = new Set(assigned.map((a) => a.userId));
-  const selectedIds = new Set(sel);
 
   function toggle(id: number) {
     setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));

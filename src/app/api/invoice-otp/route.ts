@@ -7,6 +7,7 @@ import { randomInt } from "crypto";
 import { db, schema } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { formatOrderNumber } from "@/lib/invoice-number";
+import { escapeHtml } from "@/lib/escape-html";
 import { checkRateLimit } from "@/lib/rate-limiter";
 
 const OTP_EXPIRY = 10 * 60 * 1000;
@@ -118,11 +119,7 @@ export async function POST(req: NextRequest) {
       }
 
       const orderNum = formatOrderNumber(order!.id, order!.createdAt);
-      const safeName = String(order!.clientName || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+      const safeName = escapeHtml(order!.clientName || "");
       await sendEmail({
         to: normalizedEmail,
         subject: `Your OTP for Invoice ${orderNum} — Parth Production`,
@@ -144,11 +141,8 @@ export async function POST(req: NextRequest) {
 
     if (action === "verify_otp") {
       if (!otp) return NextResponse.json({ error: "OTP is required" }, { status: 400 });
-      if (!emailMatches) {
-        // Same generic failure as wrong OTP — no existence/email oracle.
-        return NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
-      }
 
+      // Rate-limit BEFORE email/OTP oracle checks.
       const verifyRl = await checkRateLimit(`otp_verify:${oid}:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
       if (!verifyRl.allowed) {
         if (verifyRl.dbError) {
@@ -160,22 +154,23 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const INVALID = NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
+      if (!emailMatches) return INVALID;
+
       const key = `otp:${oid}`;
       const row = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1).then((r) => r[0]);
-      if (!row) return NextResponse.json({ error: "No OTP was sent. Request a new one." }, { status: 400 });
+      if (!row) return INVALID;
 
       let data: { otp: string; attempts: number; createdAt: number; email?: string };
       try { data = JSON.parse(row.value); } catch {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
-        return NextResponse.json({ error: "OTP record corrupted. Please request a new one." }, { status: 400 });
+        return INVALID;
       }
       if (!data.otp || typeof data.attempts !== "number" || typeof data.createdAt !== "number") {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
-        return NextResponse.json({ error: "OTP record invalid. Please request a new one." }, { status: 400 });
+        return INVALID;
       }
-      if (data.email && data.email !== normalizedEmail) {
-        return NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
-      }
+      if (data.email && data.email !== normalizedEmail) return INVALID;
       if (data.attempts >= MAX_ATTEMPTS) {
         await db.delete(schema.settings).where(eq(schema.settings.key, key));
         return NextResponse.json({ error: "Too many failed attempts. Request a new OTP." }, { status: 429 });
@@ -186,12 +181,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "OTP has expired. Request a new one." }, { status: 410 });
       }
 
+      // Increment attempts before compare (optimistic CAS) so parallel guesses cannot share a free slot.
+      const nextAttempts = data.attempts + 1;
+      const attemptedValue = JSON.stringify({ ...data, attempts: nextAttempts });
+      const cas = await db
+        .update(schema.settings)
+        .set({ value: attemptedValue })
+        .where(and(eq(schema.settings.key, key), eq(schema.settings.value, row.value)))
+        .returning({ key: schema.settings.key });
+      if (!cas.length) return INVALID;
+
       const match = await bcrypt.compare(otp, data.otp);
-      if (!match) {
-        data.attempts += 1;
-        await db.update(schema.settings).set({ value: JSON.stringify(data) }).where(eq(schema.settings.key, key));
-        return NextResponse.json({ error: "Invalid OTP" }, { status: 403 });
-      }
+      if (!match) return INVALID;
 
       await db.delete(schema.settings).where(eq(schema.settings.key, key));
 
