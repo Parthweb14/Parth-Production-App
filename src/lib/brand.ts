@@ -14,4 +14,4 @@ export const DEFAULT_BRAND_LOGO_URL =
 export const BRAND_LOGO_VERSION = "2026-08-parth-bg-hq-v2";
 
 /** Cache-bust query for <img src> — bump when the file on disk changes. */
-export const BRAND_LOGO_CACHE_BUST = "v9";
+export const BRAND_LOGO_CACHE_BUST = "v10";

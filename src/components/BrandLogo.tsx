@@ -8,20 +8,28 @@ type Variant = "login" | "sidebar";
 
 const SIZE: Record<
   Variant,
-  { className: string; width: number; height: number; maxPlate: string }
+  {
+    className: string;
+    width: number;
+    height: number;
+    maxPlate: string;
+    /** Mild CSS zoom into the mark (source is 2048px — stays sharp on retina). */
+    zoom: number;
+  }
 > = {
-  // Display ~7–8rem tall; intrinsic attrs stay high so retina screens stay sharp.
   login: {
-    className: "h-28 w-auto max-w-[min(100%,360px)] object-contain sm:h-32",
-    width: 1024,
-    height: 1024,
-    maxPlate: "max-w-[380px]",
+    className: "h-36 w-auto max-w-[min(100%,420px)] object-contain sm:h-40",
+    width: 2048,
+    height: 2048,
+    maxPlate: "max-w-[420px]",
+    zoom: 1.22,
   },
   sidebar: {
-    className: "h-20 w-auto max-w-full object-contain",
-    width: 640,
-    height: 640,
-    maxPlate: "max-w-[220px]",
+    className: "h-24 w-auto max-w-full object-contain",
+    width: 2048,
+    height: 2048,
+    maxPlate: "max-w-[240px]",
+    zoom: 1.18,
   },
 };
 
@@ -55,9 +63,9 @@ export function BrandLogo({
 
   return (
     <div
-      className={`logo-plate inline-flex w-full ${s.maxPlate} items-center justify-center rounded-xl p-2 sm:p-3`}
+      className={`logo-plate inline-flex w-full ${s.maxPlate} items-center justify-center overflow-hidden rounded-xl p-1.5 sm:p-2`}
     >
-      {/* Native <img> of the full PNG — no Next Image resize, no Sharp crop. */}
+      {/* Full 2048 PNG + CSS zoom only — no Sharp/WebP recompress. */}
       <img
         src={src}
         alt={alt}
@@ -66,7 +74,11 @@ export function BrandLogo({
         decoding="async"
         fetchPriority={variant === "login" ? "high" : "auto"}
         className={s.className}
-        style={{ imageRendering: "auto" }}
+        style={{
+          imageRendering: "auto",
+          transform: `scale(${s.zoom})`,
+          transformOrigin: "center center",
+        }}
       />
     </div>
   );
