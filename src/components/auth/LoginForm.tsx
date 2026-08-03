@@ -5,7 +5,6 @@ import Link from "next/link";
 import { loginAction } from "@/server/auth-actions";
 import { AuthCaptchaFields } from "@/components/auth/AuthCaptchaFields";
 import { BrandLogo } from "@/components/BrandLogo";
-import { Film } from "lucide-react";
 
 export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
   const [state, formAction, pending] = useActionState(loginAction, null);
@@ -28,15 +27,9 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
       <div className="w-full max-w-md">
         <div className="glass rounded-2xl p-8 shadow-2xl">
           <div className="mb-6 text-center">
-            {logoUrl ? (
-              <div className="mx-auto mb-5 flex items-center justify-center">
-                <BrandLogo logoUrl={logoUrl} variant="login" />
-              </div>
-            ) : (
-              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-lg">
-                <Film className="h-8 w-8" />
-              </div>
-            )}
+            <div className="mx-auto mb-5 flex items-center justify-center">
+              <BrandLogo logoUrl={logoUrl} variant="login" />
+            </div>
             {/* Brand mark is in the logo; keep only a short supporting line under it. */}
             <p className="text-sm text-gray-500 dark:text-gray-400">Professional Event Services</p>
           </div>

@@ -11,10 +11,19 @@ function resizeImage(file: File, maxDim: number): Promise<string> {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      // Never upscale small sources; keep full detail when already under maxDim.
+      // Never upscale; keep full detail when already under maxDim.
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
+      // PNG sources: keep lossless PNG (brand logos look soft as lossy WebP).
+      const preferPng = file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
+      if (preferPng && scale === 1 && file.size <= 1_800_000) {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read image file."));
+        reader.readAsDataURL(file);
+        return;
+      }
       const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = h;
@@ -23,12 +32,7 @@ function resizeImage(file: File, maxDim: number): Promise<string> {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, w, h);
-      // Prefer WebP for sharper detail at smaller payload; fall back to PNG.
-          const webp = canvas.toDataURL("image/webp", 0.98);
-      if (webp.startsWith("data:image/webp")) {
-        resolve(webp);
-        return;
-      }
+      // Always export PNG for logos — sharper than WebP recompress.
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => reject(new Error("Could not read image file."));
@@ -132,8 +136,8 @@ export function SettingsView({
       <Card className="max-w-lg p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Company Logo</h3>
         <p className="mb-4 text-xs text-gray-500">
-          Your brand logo is already set (clear original file). You do not need to re-upload unless you want a different logo.
-          If you upload, use a sharp PNG/WebP (up to ~2048px). Do not use a cropped or tiny file.
+          Your clear logo is already built into the app — you do not need to upload again for login or the admin panel.
+          Only upload if you want a different logo. Use a sharp PNG (up to ~2048px), not a cropped or tiny file.
         </p>
         <div className="mb-4 flex items-center gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">

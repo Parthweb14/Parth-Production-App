@@ -12,8 +12,8 @@ export async function GET() {
     theme_color: "#0f172a",
     orientation: "portrait-primary",
     icons: [
-      { src: "/api/icon?size=192&v=6", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/api/icon?size=512&v=6", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+      { src: "/api/icon?size=192&v=9", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/api/icon?size=512&v=9", sizes: "512x512", type: "image/png", purpose: "any maskable" },
     ],
   };
 

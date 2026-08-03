@@ -17,12 +17,15 @@ export const getSetting = nextCache(_getSetting, ["settings"], { revalidate: 30 
 export async function getLogoUrl(): Promise<string | null> {
   try {
     const [v, version] = await Promise.all([getSetting("logo_url"), getSetting("logo_brand_version")]);
-    // Show custom upload only after this brand refresh; otherwise use the crisp original.
-    if (v && v.length > 0 && version === BRAND_LOGO_VERSION) return v;
+    // Show custom upload only after this brand refresh; otherwise use the crisp local PNG.
+    // Old DB WebP data-URLs (pre brand version) are intentionally ignored — they look blurry.
+    if (v && v.length > 0 && version === BRAND_LOGO_VERSION && !v.includes("/api/icon")) {
+      return v;
+    }
   } catch {
     // DB unavailable — still show the brand logo.
   }
-  return DEFAULT_BRAND_LOGO_URL;
+  return LOCAL_BRAND_LOGO_URL;
 }
 
 export async function getScanEnabled(): Promise<boolean> {

@@ -68,59 +68,27 @@ async function renderFavicon(input: Buffer, size: number): Promise<Buffer> {
 
 export async function GET(req: NextRequest) {
   try {
-    // Canonical query only — reject cache-bypass / unknown params that force reprocessing.
-    const allowed = new Set(["size", "trim", "h", "v"]);
+    // Favicons only — display logos must use /parth-logo.png (or a custom upload), never this crop path.
+    const allowed = new Set(["size", "v"]);
     for (const key of req.nextUrl.searchParams.keys()) {
       if (!allowed.has(key)) {
         return new NextResponse(null, { status: 400 });
       }
     }
 
-    const logoUrl = (await getLogoUrl()) || DEFAULT_BRAND_LOGO_URL || LOCAL_BRAND_LOGO_URL;
-    let input = await logoToBuffer(logoUrl);
-    if (!input && logoUrl !== LOCAL_BRAND_LOGO_URL) {
-      input = await logoToBuffer(LOCAL_BRAND_LOGO_URL);
+    // Always build favicons from the crisp local master (ignore old blurry DB WebPs).
+    let input = await logoToBuffer(LOCAL_BRAND_LOGO_URL);
+    if (!input) {
+      input = await logoToBuffer(DEFAULT_BRAND_LOGO_URL);
+    }
+    if (!input) {
+      const custom = await getLogoUrl();
+      if (custom && custom !== LOCAL_BRAND_LOGO_URL) {
+        input = await logoToBuffer(custom);
+      }
     }
     if (!input) {
       return new NextResponse(null, { status: 204 });
-    }
-
-    const trim = req.nextUrl.searchParams.get("trim") === "1";
-
-    // Trim mode: strip empty/black padding so the wide brand lockup fills auth/sidebar frames.
-    if (trim) {
-      const rawH = Number(req.nextUrl.searchParams.get("h") || "128");
-      const height = Number.isFinite(rawH) ? Math.min(1024, Math.max(48, Math.round(rawH))) : 128;
-
-      const trimmed = await sharp(input)
-        .trim({ threshold: 12 })
-        .ensureAlpha()
-        .toBuffer({ resolveWithObject: true });
-
-      const nativeH = trimmed.info.height || height;
-      let pipeline = sharp(trimmed.data);
-      if (height !== nativeH) {
-        pipeline = pipeline.resize({
-          height,
-          fit: "inside",
-          kernel: sharp.kernel.lanczos3,
-          withoutEnlargement: false,
-        });
-        if (height > nativeH) {
-          pipeline = pipeline.sharpen({ sigma: 0.7, m1: 0.9, m2: 0.45 });
-        }
-      }
-
-      const png = await pipeline.png({ compressionLevel: 6, quality: 100 }).toBuffer();
-
-      return new NextResponse(new Uint8Array(png), {
-        status: 200,
-        headers: {
-          "Content-Type": "image/png",
-          // Variant-specific cache key via Vary isn't enough; cache by canonical path+params only.
-          "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
-        },
-      });
     }
 
     const raw = Number(req.nextUrl.searchParams.get("size") || "32");

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { forgotPasswordAction, verifyOtpAction, resetPasswordAction } from "@/server/auth-actions";
 import { AuthCaptchaFields } from "@/components/auth/AuthCaptchaFields";
 import { BrandLogo } from "@/components/BrandLogo";
-import { Film, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
   const router = useRouter();
@@ -40,18 +40,9 @@ export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
       <div className="w-full max-w-md">
         <div className="glass rounded-2xl p-8 shadow-2xl">
           <div className="mb-6 text-center">
-            {logoUrl ? (
-              <div className="mx-auto mb-5 flex items-center justify-center">
-                <BrandLogo logoUrl={logoUrl} variant="login" />
-              </div>
-            ) : (
-              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-lg">
-                <Film className="h-8 w-8" />
-              </div>
-            )}
-            {!logoUrl && (
-              <h1 className="text-xl font-extrabold tracking-wide text-gray-100">PARTH PRODUCTION</h1>
-            )}
+            <div className="mx-auto mb-5 flex items-center justify-center">
+              <BrandLogo logoUrl={logoUrl} variant="login" />
+            </div>
             <p className="text-sm text-gray-400">
               {step === "email" && "Forgot your password? Reset it here."}
               {step === "otp" && "Check your email for the OTP."}

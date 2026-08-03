@@ -16,7 +16,6 @@ import {
   Mail,
   Inbox,
   LogOut,
-  Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
@@ -71,17 +70,9 @@ export function Sidebar({
     <aside className="glass-sidebar flex h-full w-64 flex-col">
       {/* Brand header */}
       <div className="brand-header px-5 py-5">
-        {logoUrl ? (
-          <div className="mb-3 flex items-center justify-center">
-            <BrandLogo logoUrl={logoUrl} variant="sidebar" alt="Logo" />
-          </div>
-        ) : (
-          <div className="mb-3 flex items-center justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-200 dark:bg-white/15">
-              <Film className="h-7 w-7 text-gray-600 dark:text-white" />
-            </div>
-          </div>
-        )}
+        <div className="mb-3 flex items-center justify-center">
+          <BrandLogo logoUrl={logoUrl} variant="sidebar" alt="Logo" />
+        </div>
         <div className="text-center">
           <div className="text-base font-bold text-gray-900 dark:text-white">{role === "admin" ? "Parth Admin" : "Parth Staff"}</div>
           <div className="text-xs text-gray-500 dark:text-white/60">Parth Production</div>
