@@ -14,7 +14,7 @@ async function upsertSetting(key: string, value: string) {
     .onConflictDoUpdate({ target: schema.settings.key, set: { value, updatedAt: new Date() } });
 }
 
-const MAX_BYTES = 1_200_000;
+const MAX_BYTES = 2_000_000;
 const ALLOWED_LOGO_PREFIXES = ["data:image/png", "data:image/jpeg", "data:image/jpg", "data:image/webp"];
 
 export async function setLogo(dataUrl: string) {
@@ -23,7 +23,7 @@ export async function setLogo(dataUrl: string) {
   if (!ALLOWED_LOGO_PREFIXES.some((p) => dataUrl.startsWith(p))) {
     throw new Error("Only PNG, JPEG, or WebP images are allowed.");
   }
-  if (dataUrl.length > MAX_BYTES) throw new Error("Logo too large. Please use an image under ~900KB.");
+  if (dataUrl.length > MAX_BYTES) throw new Error("Logo too large. Please use an image under ~1.5MB.");
   await upsertSetting("logo_url", dataUrl);
   await upsertSetting("logo_brand_version", BRAND_LOGO_VERSION);
   revalidatePath("/", "layout");

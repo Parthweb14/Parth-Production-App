@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
 
@@ -72,16 +73,7 @@ export function Sidebar({
       <div className="brand-header px-5 py-5">
         {logoUrl ? (
           <div className="mb-3 flex items-center justify-center">
-            <div className="logo-plate inline-flex w-full max-w-[210px] items-center justify-center overflow-hidden rounded-xl">
-              <img
-                src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=7`}
-                alt="Logo"
-                width={210}
-                height={210}
-                decoding="async"
-                className="h-16 w-auto max-w-full object-contain sm:h-[4.5rem]"
-              />
-            </div>
+            <BrandLogo logoUrl={logoUrl} variant="sidebar" alt="Logo" />
           </div>
         ) : (
           <div className="mb-3 flex items-center justify-center">

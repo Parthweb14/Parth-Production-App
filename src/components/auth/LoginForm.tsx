@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { loginAction } from "@/server/auth-actions";
 import { AuthCaptchaFields } from "@/components/auth/AuthCaptchaFields";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Film } from "lucide-react";
 
 export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
@@ -29,17 +30,7 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
           <div className="mb-6 text-center">
             {logoUrl ? (
               <div className="mx-auto mb-5 flex items-center justify-center">
-                <div className="logo-plate inline-flex items-center justify-center overflow-hidden rounded-xl">
-                  <img
-                    src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=7`}
-                    alt="Parth Production"
-                    width={280}
-                    height={280}
-                    decoding="async"
-                    fetchPriority="high"
-                    className="h-[5.5rem] w-auto max-w-[280px] object-contain sm:h-24"
-                  />
-                </div>
+                <BrandLogo logoUrl={logoUrl} variant="login" />
               </div>
             ) : (
               <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-lg">

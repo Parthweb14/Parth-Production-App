@@ -24,7 +24,7 @@ function resizeImage(file: File, maxDim: number): Promise<string> {
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, w, h);
       // Prefer WebP for sharper detail at smaller payload; fall back to PNG.
-      const webp = canvas.toDataURL("image/webp", 0.94);
+          const webp = canvas.toDataURL("image/webp", 0.98);
       if (webp.startsWith("data:image/webp")) {
         resolve(webp);
         return;
@@ -77,7 +77,7 @@ export function SettingsView({
     setError(null);
     if (!file.type.startsWith("image/")) { setError("Only image files are allowed."); return; }
     try {
-      const dataUrl = await resizeImage(file, 1280);
+      const dataUrl = await resizeImage(file, 2048);
       setPreview(dataUrl);
       setPending(true);
       try { await setLogo(dataUrl); } catch (err) { setError((err as Error).message); setPreview(logoUrl); } finally { setPending(false); }
@@ -132,7 +132,8 @@ export function SettingsView({
       <Card className="max-w-lg p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Company Logo</h3>
         <p className="mb-4 text-xs text-gray-500">
-          Shown in sidebar, login, invoices, and PWA. Upload a clear PNG/WebP at least ~800px wide (max ~1280px) for a sharp logo.
+          Your brand logo is already set (clear original file). You do not need to re-upload unless you want a different logo.
+          If you upload, use a sharp PNG/WebP (up to ~2048px). Do not use a cropped or tiny file.
         </p>
         <div className="mb-4 flex items-center gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
