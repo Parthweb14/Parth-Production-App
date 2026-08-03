@@ -1,5 +1,5 @@
 // src/lib/auth.ts
-import { randomBytes, randomInt, createHash } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { eq, and, isNull, gte, asc } from "drizzle-orm";
@@ -33,6 +33,8 @@ import {
   sha256Hex,
   verifyAuthCaptcha,
 } from "./auth-security";
+import { escapeHtml } from "./escape-html";
+import { getAuthSecretBytes } from "./auth-secret";
 
 const COOKIE = "kp_session";
 const MAX_ADMIN_DEVICES = 2;
@@ -50,29 +52,7 @@ export type AuthFailResult = {
 };
 
 function getSecret(): Uint8Array {
-  const s = process.env.AUTH_SECRET;
-  if (!s || s.trim().length < 8) {
-    throw new Error(
-      "AUTH_SECRET is required and must be at least 8 characters. Current value length: " +
-        (s ? s.length : "undefined")
-    );
-  }
-  if (s.trim().length < 32) {
-    console.warn(
-      "[auth] AUTH_SECRET is shorter than 32 characters. Generate a stronger secret with: openssl rand -base64 32"
-    );
-  }
-  return new TextEncoder().encode(s);
-}
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return getAuthSecretBytes();
 }
 
 export type SessionUser = {
@@ -221,16 +201,19 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   return verify(token);
 }
 
-/** Require an authenticated user, else redirect to /login. */
-export async function requireUser(): Promise<SessionUser> {
+/**
+ * Current user allowed to mutate app data.
+ * Forced-password-change sessions may only use change-password / logout.
+ */
+export async function getMutableUser(): Promise<SessionUser | null> {
   const u = await getCurrentUser();
-  if (!u) throw new Error("UNAUTHENTICATED");
+  if (!u || u.mustChangePwd) return null;
   return u;
 }
 
-/** Require an admin; otherwise return null so pages can redirect. */
+/** Require an admin who may mutate data; otherwise return null. */
 export async function requireAdmin(): Promise<SessionUser | null> {
-  const u = await getCurrentUser();
+  const u = await getMutableUser();
   if (!u || u.role !== "admin") return null;
   return u;
 }
@@ -371,11 +354,12 @@ export async function login(
     return { ok: false, error: "Server error (auth). Please try again." };
   }
 
-  // Single generic failure for missing user, bad password, or inactive/unverified.
-  // Pending email verification keeps active=false until proven — same error copy.
+  // Single generic failure for missing user, bad password, inactive, or unverified.
+  // Require both active=true AND proven inbox ownership (emailVerifiedAt).
   const activeOk = user ? user.active !== false : false;
+  const verifiedOk = user ? user.emailVerifiedAt != null : false;
 
-  if (!user || !match || !activeOk) {
+  if (!user || !match || !activeOk || !verifiedOk) {
     return fail(AUTH_GENERIC_FAIL, { captchaRequired: lock.captchaRequired });
   }
 
@@ -441,11 +425,6 @@ export async function logout(): Promise<void> {
 /** Hash a password with bcrypt (cost 12) — never store plaintext / MD5 / raw SHA-256. */
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 12);
-}
-
-function hashResetToken(token: string): string {
-  // Store only a SHA-256 digest of the random secret — never the raw token.
-  return createHash("sha256").update(token).digest("hex");
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -515,12 +494,13 @@ export async function sendForgotOtp(
         set: { value: JSON.stringify({ otp: hashed, expiresAt: Date.now() + OTP_TTL_MS }) },
       });
 
-    try {
-      const { sendEmail } = await import("@/lib/email");
-      await sendEmail({
-        to: normalized,
-        subject: "Password Reset OTP — Kadam Production",
-        html: `
+    // Fire-and-forget so SMTP latency cannot reveal account existence.
+    void import("@/lib/email")
+      .then(({ sendEmail }) =>
+        sendEmail({
+          to: normalized,
+          subject: "Password Reset OTP — Parth Production",
+          html: `
       <div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Password Reset Request</h2>
         <p>Hello <strong>${escapeHtml(user.name)}</strong>,</p>
@@ -530,17 +510,12 @@ export async function sendForgotOtp(
         </div>
         <p style="color:#6b7280;font-size:13px">If you did not request this, please ignore this email.</p>
         <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb" />
-        <p style="font-size:12px;color:#6b7280">Kadam Production — Professional Event Services</p>
+        <p style="font-size:12px;color:#6b7280">Parth Production — Professional Event Services</p>
       </div>
     `,
-      });
-    } catch (err) {
-      // Do not reveal mailer failure as "account exists".
-      console.error("[auth] forgot OTP email failed");
-    }
-  } else {
-    // Burn equivalent time when no account exists (approx. SMTP latency).
-    await new Promise((r) => setTimeout(r, 180 + randomInt(0, 120)));
+        })
+      )
+      .catch(() => console.error("[auth] forgot OTP email failed"));
   }
 
   await equalizeTiming(started, MIN_FORGOT_MS);
@@ -567,7 +542,25 @@ export async function verifyForgotOtp(
     return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: challenge, retryAfter: rl.retryAfter };
   }
 
+  const rlIp = await generalRateLimit(`verify_otp_ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 });
+  if (!rlIp.allowed) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_OTP_MS);
+    return {
+      ok: false,
+      error: AUTH_RATE_LIMITED,
+      captchaRequired: true,
+      captcha: challenge,
+      retryAfter: rlIp.retryAfter,
+    };
+  }
+
   const lock = await getLockoutStatus(bucket);
+  if (lock.locked) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_OTP_MS);
+    return { ok: false, error: AUTH_LOCKED, captchaRequired: true, captcha: challenge, retryAfter: lock.retryAfterSec };
+  }
   if (lock.captchaRequired) {
     const okCaptcha = await verifyAuthCaptcha(String(captcha?.id || ""), String(captcha?.answer || ""));
     if (!okCaptcha) {
@@ -632,7 +625,7 @@ export async function verifyForgotOtp(
     .where(and(eq(schema.passwordResets.userId, user.id), isNull(schema.passwordResets.usedAt)));
 
   const rawToken = randomBytes(32).toString("hex");
-  const tokenHash = hashResetToken(rawToken);
+  const tokenHash = sha256Hex(rawToken);
   const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
   await db.insert(schema.passwordResets).values({
     userId: user.id,
@@ -672,7 +665,7 @@ export async function resetPasswordWithToken(
     }
     const email = payload.email as string;
     const jti = payload.jti as string;
-    const tokenHash = hashResetToken(jti);
+    const tokenHash = sha256Hex(jti);
 
     const resetRow = await db
       .select()
@@ -702,14 +695,13 @@ export async function resetPasswordWithToken(
       .set({ usedAt: new Date() })
       .where(eq(schema.passwordResets.id, resetRow.id));
 
+    // Only update the password (+ revoke sessions). Do NOT set emailVerifiedAt
+    // or active — that would bypass the invite/verify gate for pending users.
     await db
       .update(schema.users)
       .set({
         password: await hashPassword(newPassword),
         mustChangePwd: false,
-        // Completing reset also proves inbox control.
-        emailVerifiedAt: new Date(),
-        active: true,
       })
       .where(eq(schema.users.id, user.id));
     await db
@@ -747,7 +739,7 @@ export async function issueEmailVerification(userId: number, email: string, name
   const { sendEmail } = await import("@/lib/email");
   await sendEmail({
     to: normalized,
-    subject: "Verify your email — Kadam Production",
+    subject: "Verify your email — Parth Production",
     html: `
       <div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
         <h2 style="color:#1e40af">Verify your email</h2>
@@ -783,6 +775,11 @@ export async function verifyEmailOwnership(
   }
 
   const lock = await getLockoutStatus(bucket);
+  if (lock.locked) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_VERIFY_MS);
+    return { ok: false, error: AUTH_LOCKED, captchaRequired: true, captcha: challenge, retryAfter: lock.retryAfterSec };
+  }
   if (lock.captchaRequired) {
     const okCaptcha = await verifyAuthCaptcha(String(captcha?.id || ""), String(captcha?.answer || ""));
     if (!okCaptcha) {
@@ -790,6 +787,13 @@ export async function verifyEmailOwnership(
       await equalizeTiming(started, MIN_VERIFY_MS);
       return { ok: false, error: AUTH_CAPTCHA_REQUIRED, captchaRequired: true, captcha: challenge };
     }
+  }
+
+  const rlIp = await generalRateLimit(`email_verify_ip:${ip}`, { max: 20, windowMs: 15 * 60 * 1000 });
+  if (!rlIp.allowed) {
+    const challenge = await createAuthCaptcha();
+    await equalizeTiming(started, MIN_VERIFY_MS);
+    return { ok: false, error: AUTH_RATE_LIMITED, captchaRequired: true, captcha: challenge };
   }
 
   const key = `email_verify_${sha256Hex(normalized).slice(0, 32)}`;
@@ -841,6 +845,11 @@ export async function changePassword(
   current: string,
   next: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ip = await getRequestIp();
+  const pwdRlUser = await generalRateLimit(`change_pwd_user:${userId}`, { max: 10, windowMs: 15 * 60 * 1000 });
+  const pwdRl = await generalRateLimit(`change_pwd:${userId}:${ip}`, { max: 8, windowMs: 15 * 60 * 1000 });
+  if (!pwdRlUser.allowed || !pwdRl.allowed) return { ok: false, error: AUTH_RATE_LIMITED };
+
   const user = await db
     .select()
     .from(schema.users)
@@ -848,9 +857,13 @@ export async function changePassword(
     .limit(1)
     .then((r) => r[0]);
   if (!user) return { ok: false, error: "User not found" };
+  if (user.active === false) return { ok: false, error: "Account is inactive." };
   if (current === next) return { ok: false, error: "New password must be different from the current password." };
   if (next.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
-  if (!(await bcrypt.compare(current, user.password))) return { ok: false, error: "Current password is incorrect" };
+  if (!(await bcrypt.compare(current, user.password))) {
+    await recordAuthFailure(authBucket("change_pwd", user.email, ip));
+    return { ok: false, error: "Current password is incorrect" };
+  }
   await db
     .update(schema.users)
     .set({ password: await hashPassword(next), mustChangePwd: false })

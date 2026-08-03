@@ -1,5 +1,5 @@
 // drizzle/seed.ts — seeds the initial admin user (run after db:push).
-// Usage: npm run db:seed
+// Usage: SETUP_ADMIN_PASSWORD='…' npm run db:seed
 import { createClient } from "@libsql/client";
 import bcrypt from "bcryptjs";
 
@@ -13,13 +13,21 @@ async function main() {
     console.log("Admin already exists — skipping.");
     return;
   }
-  const hash = await bcrypt.hash("admin123", 12);
-  // Explicit timestamps: drizzle-kit push creates NOT NULL cols without SQL defaults.
+
+  const password = process.env.SETUP_ADMIN_PASSWORD?.trim();
+  if (!password || password.length < 12) {
+    console.error(
+      "Refusing to seed: set SETUP_ADMIN_PASSWORD to a strong password (12+ chars). Password is never logged."
+    );
+    process.exit(1);
+  }
+
+  const hash = await bcrypt.hash(password, 12);
   await client.execute({
     sql: "INSERT INTO users (name, email, password, role, must_change_pwd, email_verified_at, active, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, unixepoch(), 1, unixepoch(), unixepoch())",
-    args: ["KP Admin", "admin@kadamproduction.in", hash],
+    args: ["Parth Admin", "admin@parthproduction.com", hash],
   });
-  console.log("✓ Seeded admin → admin@kadamproduction.in / admin123");
+  console.log("✓ Seeded admin → admin@parthproduction.com (password from SETUP_ADMIN_PASSWORD; not logged)");
 }
 
 main().catch((e) => {

@@ -2,7 +2,6 @@
 "use client";
 import { useState } from "react";
 import { Button, Input, Label, Textarea, Select, Modal, Card, EmptyState } from "@/components/ui";
-import { Fab } from "@/components/Fab";
 import {
   createCategory, updateCategory, deleteCategory,
   createSubcategory, updateSubcategory, deleteSubcategory,

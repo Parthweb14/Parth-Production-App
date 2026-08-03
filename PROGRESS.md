@@ -1,4 +1,4 @@
-# Kadam Production — Progress Record
+# Parth Production — Progress Record
 
 ## Last Session: June 27, 2026 (Final)
 
@@ -23,9 +23,9 @@
 - My-tasks sorted by setup date
 
 ### Key Info
-- **Vercel**: `kadamproduction-opencode.vercel.app`
-- **Turso DB**: `libsql://kadam-production-kadamproduction.aws-ap-south-1.turso.io`
-- **Admin**: `admin@kadamproduction.in` / `admin123` (change password on first login)
+- **Vercel**: `parth-production-app.vercel.app`
+- **Turso DB**: `libsql://app-parth-production-parthproduction.aws-ap-south-1.turso.io`
+- **Admin**: `admin@parthproduction.com` / `admin123` (change password on first login)
 - **Protocol**: Trishulhub v14.0.0 at `C:\trishul-protocol`
 - **Branch**: `main` → remote `origin/main`
 - **Color system**: Pure Black & White monochrome

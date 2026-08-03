@@ -123,24 +123,42 @@ export async function updateEmployee(input: { id: number; name: string; email?: 
   revalidatePath("/employees");
 }
 
-export async function deleteEmployee(userId: number) {
-  const user = await requireAdmin();
-  if (!user) throw new Error("Unauthorized");
-  if (user.id === userId) throw new Error("You cannot delete or deactivate your own account.");
-  const emp = await getTargetEmployee(userId);
-  if (!emp) throw new Error("Employee not found.");
-  await db
-    .update(schema.users)
-    .set({
-      deletedAt: new Date(),
-      email: sql`"deleted_" || ${schema.users.id} || "_" || ${schema.users.email}`,
-    })
-    .where(eq(schema.users.id, userId));
-  await db
-    .update(schema.sessions)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(schema.sessions.userId, userId), isNull(schema.sessions.revokedAt)));
-  revalidatePath("/employees");
+export async function deleteEmployee(userId: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const user = await requireAdmin();
+    if (!user) return { ok: false, error: "Unauthorized" };
+    if (user.id === userId) return { ok: false, error: "You cannot delete or deactivate your own account." };
+
+    const emp = await getTargetEmployee(userId);
+    if (!emp) return { ok: false, error: "Employee not found." };
+
+    await db
+      .update(schema.users)
+      .set({
+        deletedAt: new Date(),
+        email: sql`"deleted_" || ${schema.users.id} || "_" || ${schema.users.email}`,
+      })
+      .where(eq(schema.users.id, userId));
+
+    await db
+      .update(schema.sessions)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(schema.sessions.userId, userId), isNull(schema.sessions.revokedAt)));
+
+    // Cache revalidation shouldn't crash the UI; if it fails, still let the user
+    // see the result of the delete operation.
+    try {
+      revalidatePath("/employees");
+    } catch (e) {
+      console.warn("[employee-actions] revalidatePath(/employees) failed:", e);
+    }
+
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not delete employee.";
+    console.error("[employee-actions] deleteEmployee failed:", err);
+    return { ok: false, error: message };
+  }
 }
 
 export async function toggleEmployeeActive(userId: number) {
@@ -150,6 +168,18 @@ export async function toggleEmployeeActive(userId: number) {
   const emp = await getTargetEmployee(userId);
   if (!emp) throw new Error("Employee not found.");
   const nextActive = !emp.active;
+  if (nextActive) {
+    // Never activate an account that has not proven inbox ownership.
+    const full = await db
+      .select({ emailVerifiedAt: schema.users.emailVerifiedAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1)
+      .then((r) => r[0]);
+    if (!full?.emailVerifiedAt) {
+      throw new Error("Cannot activate until the employee verifies their email.");
+    }
+  }
   await db.update(schema.users).set({ active: nextActive }).where(eq(schema.users.id, userId));
   // Revoke sessions when deactivating so access ends immediately.
   if (!nextActive) {
@@ -159,19 +189,4 @@ export async function toggleEmployeeActive(userId: number) {
       .where(and(eq(schema.sessions.userId, userId), isNull(schema.sessions.revokedAt)));
   }
   revalidatePath("/employees");
-}
-
-export async function listEmployees() {
-  const user = await requireAdmin();
-  if (!user) throw new Error("Unauthorized");
-  return db
-    .select({
-      id: schema.users.id,
-      name: schema.users.name,
-      email: schema.users.email,
-      phone: schema.users.phone,
-      active: schema.users.active,
-    })
-    .from(schema.users)
-    .where(and(eq(schema.users.role, "employee"), isNull(schema.users.deletedAt)));
 }

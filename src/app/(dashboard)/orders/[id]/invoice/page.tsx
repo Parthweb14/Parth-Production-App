@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatOrderNumber } from "@/lib/invoice-number";
@@ -13,10 +13,18 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   if (!user) return null;
   const { id } = await params;
 
-  const order = await db.select().from(schema.orders).where(eq(schema.orders.id, Number(id))).limit(1).then((r) => r[0]);
+  const order = await db
+    .select()
+    .from(schema.orders)
+    .where(and(eq(schema.orders.id, Number(id)), isNull(schema.orders.deletedAt)))
+    .limit(1)
+    .then((r) => r[0]);
   if (!order) notFound();
 
-  const txns = await db.select().from(schema.finance).where(eq(schema.finance.orderId, Number(id)));
+  const txns = await db
+    .select()
+    .from(schema.finance)
+    .where(and(eq(schema.finance.orderId, Number(id)), isNull(schema.finance.deletedAt)));
   const paid = txns.filter((t) => t.type === "income").reduce((a, t) => a + Number(t.amount), 0);
   const total = Number(order.totalBudget);
 
@@ -44,7 +52,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           Back to Order
         </a>
         <div className="flex gap-2">
-          <WhatsAppButton phone={order.contactPhone ?? ""} orderNum={orderNum} clientName={order.clientName} total={grandTotal} paid={paid} due={due} invoiceUrl={`${process.env.NEXT_PUBLIC_BASE_URL ?? "https://app.kadamproduction.in"}/invoice/${id}`} />
+          <WhatsAppButton phone={order.contactPhone ?? ""} orderNum={orderNum} clientName={order.clientName} total={grandTotal} paid={paid} due={due} invoiceUrl={`${process.env.NEXT_PUBLIC_BASE_URL ?? "https://parth-production-app.vercel.app"}/invoice/${id}`} />
           <PrintButton />
         </div>
       </div>
@@ -53,8 +61,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         {/* Header */}
         <div className="flex flex-col items-start justify-between gap-4 border-b-2 border-black pb-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-2xl font-black tracking-wide sm:text-3xl">KADAM PRODUCTION</h1>
-            <p className="mt-0.5 text-xs text-gray-500">kadamproduction.in</p>
+            <h1 className="text-2xl font-black tracking-wide sm:text-3xl">PARTH PRODUCTION</h1>
+            <p className="mt-0.5 text-xs text-gray-500">parthproduction.in</p>
           </div>
           <div className="text-left sm:text-right">
             <p className="text-2xl font-black tracking-widest sm:text-3xl">INVOICE</p>
@@ -128,8 +136,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
 
         {/* Footer */}
         <div className="mt-6 border-t border-black pt-4 text-center text-xs text-gray-600">
-          <p>Thank you for choosing Kadam Production.</p>
-          <p className="mt-1">{new Date().getFullYear()} Kadam Production — <a href="https://kadamproduction.in" target="_blank" rel="noopener noreferrer" className="font-medium underline hover:text-gray-800">kadamproduction.in</a></p>
+          <p>Thank you for choosing Parth Production.</p>
+          <p className="mt-1">{new Date().getFullYear()} Parth Production — <a href="https://parthproduction.in" target="_blank" rel="noopener noreferrer" className="font-medium underline hover:text-gray-800">parthproduction.in</a></p>
         </div>
       </div>
     </div>

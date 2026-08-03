@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  experimental: {},
   // H4: Security response headers
   async headers() {
     return [
@@ -20,7 +19,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob:",
+              "img-src 'self' data: blob: https://pub-f7e582206f9d4cf49fa1d710c6c8b5e9.r2.dev",
               "font-src 'self' data:",
               "connect-src 'self'",
               "frame-ancestors 'none'",

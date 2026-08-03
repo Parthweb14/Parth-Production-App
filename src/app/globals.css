@@ -147,6 +147,17 @@
     transform: translateZ(0);
     position: relative;
   }
+  /* Brand logo is light-on-dark artwork — always use a dark plate so it stays
+     visible in both light and dark UI chrome (never flip to a white plate). */
+  .logo-plate {
+    background: #0b1220;
+    border: 1px solid rgba(15, 23, 42, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+  .dark .logo-plate {
+    background: #0b1220;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
 }
 
 html, body { height: 100%; }
@@ -301,8 +312,8 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-@keyframes kp-logo-zoom {
+@keyframes pp-logo-zoom {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
+  50% { transform: scale(1.04); }
 }
-.kp-logo-zoom { animation: kp-logo-zoom 3s ease-in-out infinite; }
+.pp-logo-zoom { animation: pp-logo-zoom 3.5s ease-in-out infinite; transform-origin: center; }

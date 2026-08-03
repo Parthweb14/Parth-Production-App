@@ -16,10 +16,10 @@ import {
   Mail,
   Inbox,
   LogOut,
-  Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
 
@@ -70,20 +70,12 @@ export function Sidebar({
     <aside className="glass-sidebar flex h-full w-64 flex-col">
       {/* Brand header */}
       <div className="brand-header px-5 py-5">
-        {logoUrl ? (
-          <div className="mb-3 flex items-center justify-center">
-            <img src={logoUrl} alt="Logo" className="h-auto w-full max-h-28 rounded-xl object-contain" />
-          </div>
-        ) : (
-          <div className="mb-3 flex items-center justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-200 dark:bg-white/15">
-              <Film className="h-7 w-7 text-gray-600 dark:text-white" />
-            </div>
-          </div>
-        )}
+        <div className="mb-3 flex items-center justify-center">
+          <BrandLogo logoUrl={logoUrl} variant="sidebar" alt="Logo" />
+        </div>
         <div className="text-center">
-          <div className="text-base font-bold text-gray-900 dark:text-white">{role === "admin" ? "KP Admin" : "KP Staff"}</div>
-          <div className="text-xs text-gray-500 dark:text-white/60">Kadam Production</div>
+          <div className="text-base font-bold text-gray-900 dark:text-white">{role === "admin" ? "Parth Admin" : "Parth Staff"}</div>
+          <div className="text-xs text-gray-500 dark:text-white/60">Parth Production</div>
         </div>
         <div className="mt-3 truncate rounded-lg bg-gray-100 px-3 py-1.5 text-xs text-gray-500 dark:bg-white/10 dark:text-white/70">
           <span className="text-gray-400 dark:text-white/50">Signed in as </span>
@@ -130,7 +122,7 @@ export function Sidebar({
           Logout
         </button>
         <p className="mt-2 px-3 text-[10px] text-gray-400 dark:text-gray-600">
-          &copy; {new Date().getFullYear()} Kadam Production / Powered by{" "}
+          &copy; {new Date().getFullYear()} Parth Production / Powered by{" "}
           <a href="https://trishulhub.in" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-400">
             Trishulhub
           </a>

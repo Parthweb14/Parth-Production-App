@@ -1,8 +1,8 @@
 {
-  "name": "kadam-production",
+  "name": "parth-production",
   "version": "3.0.0",
   "private": true,
-  "description": "Kadam Production — PHP-to-Next.js rebuild (operations system for DJ/event production company)",
+  "description": "Parth Production — PHP-to-Next.js rebuild (operations system for DJ/event production company)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,19 +16,19 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.0",
+    "agentation": "^3.0.2",
     "bcryptjs": "^2.4.3",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "html5-qrcode": "^2.3.8",
     "jose": "^6.0.0",
     "lucide-react": "^0.460.0",
-    "next": "^15.1.0",
+    "next": "15.5.22",
     "nodemailer": "^9.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0",
-    "zod": "^3.24.0"
+    "sharp": "^0.35.3",
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -39,7 +39,7 @@
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^15.1.0",
+    "eslint-config-next": "15.5.22",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.0",

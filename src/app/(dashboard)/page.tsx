@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     const assigned = await countAssignedOrders(user.id);
     return (
       <div>
-        <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">Kadam Production</h1>
+        <h1 className="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100">Parth Production</h1>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="My Assigned Orders" value={assigned} tone="primary" href="/my-tasks" icon={ClipboardList} />
         </div>
@@ -39,7 +39,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Kadam Production</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Parth Production</h1>
         <span className="rounded-lg bg-kp-primary px-3 py-1.5 text-sm font-semibold text-white">ADMIN</span>
       </div>
 

@@ -11,15 +11,28 @@ function resizeImage(file: File, maxDim: number): Promise<string> {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
+      // Never upscale; keep full detail when already under maxDim.
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
       const h = Math.max(1, Math.round(img.height * scale));
+      // PNG sources: keep lossless PNG (brand logos look soft as lossy WebP).
+      const preferPng = file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
+      if (preferPng && scale === 1 && file.size <= 1_800_000) {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read image file."));
+        reader.readAsDataURL(file);
+        return;
+      }
       const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("Cannot process image."));
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, w, h);
+      // Always export PNG for logos — sharper than WebP recompress.
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => reject(new Error("Could not read image file."));
@@ -68,7 +81,7 @@ export function SettingsView({
     setError(null);
     if (!file.type.startsWith("image/")) { setError("Only image files are allowed."); return; }
     try {
-      const dataUrl = await resizeImage(file, 256);
+      const dataUrl = await resizeImage(file, 2048);
       setPreview(dataUrl);
       setPending(true);
       try { await setLogo(dataUrl); } catch (err) { setError((err as Error).message); setPreview(logoUrl); } finally { setPending(false); }
@@ -102,8 +115,8 @@ export function SettingsView({
     if (!testEmail.trim()) return;
     setTestPending(true);
     try {
-      await testSmtpSettings(testEmail.trim());
-      setSmtpMsg("Test email sent!");
+      const result = await testSmtpSettings(testEmail.trim());
+      setSmtpMsg(result.ok ? "Test email sent!" : `Error: ${result.error}`);
     } catch (err) {
       setSmtpMsg(`Error: ${(err as Error).message}`);
     }
@@ -122,7 +135,10 @@ export function SettingsView({
 
       <Card className="max-w-lg p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Company Logo</h3>
-        <p className="mb-4 text-xs text-gray-500">Shown in sidebar, invoices, PWA. Use a square image under ~220KB.</p>
+        <p className="mb-4 text-xs text-gray-500">
+          Your clear logo is already built into the app — you do not need to upload again for login or the admin panel.
+          Only upload if you want a different logo. Use a sharp PNG (up to ~2048px), not a cropped or tiny file.
+        </p>
         <div className="mb-4 flex items-center gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
             {preview ? (
@@ -215,16 +231,21 @@ export function SettingsView({
               autoComplete="new-password"
             />
           </div>
-          <div><Label>From Email</Label><Input placeholder="noreply@kadamproduction.in" value={smtpData.from} onChange={(e) => setSmtpData((s) => ({ ...s, from: e.target.value }))} /></div>
+          <div><Label>From Email</Label><Input placeholder="noreply@parthproduction.in" value={smtpData.from} onChange={(e) => setSmtpData((s) => ({ ...s, from: e.target.value }))} /></div>
+          <p className="text-xs text-gray-500">
+            For Gmail, use <strong>smtp.gmail.com</strong>, port <strong>587</strong>, your full Gmail address as the username,
+            and a Google <strong>App Password</strong> as the SMTP password.
+          </p>
           <div className="flex items-center gap-3 pt-1">
             <Button type="submit" disabled={smtpPending}>{smtpPending ? "Saving…" : "Save SMTP"}</Button>
           </div>
         </form>
         <div className="mt-4 border-t border-gray-100 pt-4">
           <Label>Send Test Email</Label>
+          <p className="mt-1 text-xs text-gray-500">You can send a test to any email address after saving SMTP settings.</p>
           <div className="mt-1 flex gap-2">
             <Input placeholder="test@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="flex-1" />
-            <Button variant="success" onClick={sendTest} disabled={testPending}><Send className="h-4 w-4" /> {testPending ? "Sending…" : "Test"}</Button>
+            <Button type="button" variant="success" onClick={sendTest} disabled={testPending}><Send className="h-4 w-4" /> {testPending ? "Sending…" : "Test"}</Button>
           </div>
         </div>
         {smtpMsg && <p className={`mt-2 text-sm ${smtpMsg.startsWith("Error") ? "text-kp-danger" : "text-kp-success"}`}>{smtpMsg}</p>}

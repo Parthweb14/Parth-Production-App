@@ -215,7 +215,7 @@ export async function GET(req: Request) {
       const cookie = cookieHeader.match(/kp_session=([^;]+)/)?.[1];
       if (cookie) {
         const secret = new TextEncoder().encode(process.env.AUTH_SECRET);
-        if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 8) throw new Error("AUTH_SECRET required");
+        if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32) throw new Error("AUTH_SECRET required");
         const { payload } = await jwtVerify(cookie, secret);
         if (payload.role === "admin" && typeof payload.sessionId === "string" && payload.sessionId) {
           // Require sessionId so revoked tokens without a DB row cannot pass.
@@ -306,20 +306,25 @@ export async function GET(req: Request) {
     const existing = await client.execute("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
     let adminSeeded = false;
     if (existing.rows.length === 0) {
-      const adminPassword = crypto.randomBytes(12).toString("base64url");
+      // Prefer SETUP_ADMIN_PASSWORD from env (never logged). Otherwise generate
+      // a random password and require forgot-password — plaintext must not hit logs.
+      const fromEnv = process.env.SETUP_ADMIN_PASSWORD?.trim();
+      const adminPassword =
+        fromEnv && fromEnv.length >= 12 ? fromEnv : crypto.randomBytes(18).toString("base64url");
       const hash = await bcrypt.hash(adminPassword, 12);
       await client.execute({
         sql: "INSERT INTO users (name, email, password, role, must_change_pwd, email_verified_at, active, created_at, updated_at) VALUES (?, ?, ?, 'admin', 1, unixepoch(), 1, unixepoch(), unixepoch())",
-        args: ["KP Admin", "admin@kadamproduction.in", hash],
+        args: ["Parth Admin", "admin@parthproduction.com", hash],
       });
       adminSeeded = true;
-      log.push("Seeded admin → admin@kadamproduction.in (password written only to server logs once)");
-      // Avoid logging the plaintext password — store a one-time marker instead.
-      console.log("==========================================================");
-      console.log("[setup] Seeded admin user: admin@kadamproduction.in");
-      console.log("[setup] One-time password (store securely, will not be shown again):");
-      console.log(`[setup] ${adminPassword}`);
-      console.log("==========================================================");
+      if (fromEnv && fromEnv.length >= 12) {
+        log.push("Seeded admin → admin@parthproduction.com (password from SETUP_ADMIN_PASSWORD; not logged)");
+      } else {
+        log.push(
+          "Seeded admin → admin@parthproduction.com (random password not logged — use forgot-password or set SETUP_ADMIN_PASSWORD before next fresh setup)"
+        );
+      }
+      console.log("[setup] Seeded admin user: admin@parthproduction.com (password not written to logs)");
       // Consume bootstrap token after successful first admin seed when set.
       if (bootstrapToken) {
         log.push("Bootstrap authorized this run. Rotate/remove SETUP_BOOTSTRAP_TOKEN after setup.");
@@ -328,9 +333,7 @@ export async function GET(req: Request) {
       log.push("Admin already exists — skipped seeding.");
     }
 
-    // SECURITY FIX: do NOT return the adminPassword in the HTTP response body.
-    // The password is logged server-side only (above). The response just
-    // indicates whether a new admin was seeded.
+    // SECURITY: never return or log the admin password in the HTTP response.
     return NextResponse.json({ ok: true, log, adminSeeded });
   } catch {
     return NextResponse.json({ ok: false, error: "Setup failed. Check server logs.", log }, { status: 500 });

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto-secret";
-import { getSetting } from "@/lib/settings";
+import { BRAND_LOGO_VERSION } from "@/lib/settings";
 
 async function upsertSetting(key: string, value: string) {
   await db
@@ -14,7 +14,7 @@ async function upsertSetting(key: string, value: string) {
     .onConflictDoUpdate({ target: schema.settings.key, set: { value, updatedAt: new Date() } });
 }
 
-const MAX_BYTES = 300_000;
+const MAX_BYTES = 2_000_000;
 const ALLOWED_LOGO_PREFIXES = ["data:image/png", "data:image/jpeg", "data:image/jpg", "data:image/webp"];
 
 export async function setLogo(dataUrl: string) {
@@ -23,8 +23,9 @@ export async function setLogo(dataUrl: string) {
   if (!ALLOWED_LOGO_PREFIXES.some((p) => dataUrl.startsWith(p))) {
     throw new Error("Only PNG, JPEG, or WebP images are allowed.");
   }
-  if (dataUrl.length > MAX_BYTES) throw new Error("Logo too large. Please use an image under ~220KB.");
+  if (dataUrl.length > MAX_BYTES) throw new Error("Logo too large. Please use an image under ~1.5MB.");
   await upsertSetting("logo_url", dataUrl);
+  await upsertSetting("logo_brand_version", BRAND_LOGO_VERSION);
   revalidatePath("/", "layout");
 }
 
@@ -32,6 +33,7 @@ export async function removeLogo() {
   const user = await requireAdmin();
   if (!user) throw new Error("Unauthorized");
   await db.delete(schema.settings).where(eq(schema.settings.key, "logo_url"));
+  await db.delete(schema.settings).where(eq(schema.settings.key, "logo_brand_version"));
   revalidatePath("/", "layout");
 }
 
@@ -72,14 +74,30 @@ export async function saveGstSettings(input: { number: string; percentage: numbe
 
 export async function testSmtpSettings(toEmail?: string) {
   const admin = await requireAdmin();
-  if (!admin) throw new Error("Unauthorized");
-  // Restrict test recipient to the admin's own email (or configured smtp_from).
-  const from = (await getSetting("smtp_from")) || admin.email;
+  if (!admin) return { ok: false as const, error: "Unauthorized" };
+
   const target = (toEmail || admin.email).trim().toLowerCase();
-  const allowed = new Set([admin.email.toLowerCase(), from.toLowerCase()]);
-  if (!allowed.has(target)) {
-    throw new Error("Test email may only be sent to your admin email or the configured From address.");
+  if (!target) return { ok: false as const, error: "Enter a recipient email address." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+    return { ok: false as const, error: "Enter a valid recipient email address." };
   }
-  const { sendEmail } = await import("@/lib/email");
-  await sendEmail({ to: target, subject: "Kadam Production — SMTP Test", html: "<p>SMTP is working correctly.</p>" });
+
+  try {
+    const { sendEmail } = await import("@/lib/email");
+    await sendEmail({
+      to: target,
+      subject: "Parth Production — SMTP Test",
+      html: "<p>SMTP is working correctly.</p>",
+    });
+    return { ok: true as const };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Could not send test email.";
+    if (message.includes("SMTP not configured")) {
+      return { ok: false as const, error: "Fill in SMTP host, port, username, password, and From email first." };
+    }
+    if (message.toLowerCase().includes("authentication")) {
+      return { ok: false as const, error: "SMTP login failed. Recheck username and password/app password." };
+    }
+    return { ok: false as const, error: message || "Could not send test email. Please recheck your SMTP details." };
+  }
 }

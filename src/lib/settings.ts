@@ -3,6 +3,9 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "./db";
 import { unstable_cache as nextCache } from "next/cache";
 import { decryptSecret } from "./crypto-secret";
+import { BRAND_LOGO_VERSION, DEFAULT_BRAND_LOGO_URL, LOCAL_BRAND_LOGO_URL } from "./brand";
+
+export { BRAND_LOGO_VERSION, DEFAULT_BRAND_LOGO_URL, LOCAL_BRAND_LOGO_URL } from "./brand";
 
 async function _getSetting(key: string): Promise<string | null> {
   const row = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1).then((r) => r[0]);
@@ -12,8 +15,17 @@ async function _getSetting(key: string): Promise<string | null> {
 export const getSetting = nextCache(_getSetting, ["settings"], { revalidate: 30 });
 
 export async function getLogoUrl(): Promise<string | null> {
-  const v = await getSetting("logo_url");
-  return v && v.length > 0 ? v : null;
+  try {
+    const [v, version] = await Promise.all([getSetting("logo_url"), getSetting("logo_brand_version")]);
+    // Show custom upload only after this brand refresh; otherwise use the crisp local PNG.
+    // Old DB WebP data-URLs (pre brand version) are intentionally ignored — they look blurry.
+    if (v && v.length > 0 && version === BRAND_LOGO_VERSION && !v.includes("/api/icon")) {
+      return v;
+    }
+  } catch {
+    // DB unavailable — still show the brand logo.
+  }
+  return LOCAL_BRAND_LOGO_URL;
 }
 
 export async function getScanEnabled(): Promise<boolean> {
@@ -63,9 +75,4 @@ export async function getSmtpCredentials() {
     pass: decryptSecret(pass),
     from: from ?? "",
   };
-}
-
-/** @deprecated Prefer getSmtpSettingsPublic / getSmtpCredentials */
-export async function getSmtpSettings() {
-  return getSmtpSettingsPublic();
 }

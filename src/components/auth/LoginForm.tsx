@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { loginAction } from "@/server/auth-actions";
 import { AuthCaptchaFields } from "@/components/auth/AuthCaptchaFields";
-import { Film } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
   const [state, formAction, pending] = useActionState(loginAction, null);
@@ -23,24 +23,14 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
   }, [state, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black p-4">
+    <div className="dark flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black p-4">
       <div className="w-full max-w-md">
         <div className="glass rounded-2xl p-8 shadow-2xl">
           <div className="mb-6 text-center">
-            {logoUrl ? (
-              <div className="mx-auto mb-4 flex items-center justify-center">
-                <img
-                  src={logoUrl}
-                  alt="Kadam Production"
-                  className="kp-logo-zoom mx-auto h-auto w-full max-h-40 rounded-xl object-contain"
-                />
-              </div>
-            ) : (
-              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-lg">
-                <Film className="h-8 w-8" />
-              </div>
-            )}
-            <h1 className="text-xl font-extrabold tracking-wide text-gray-900 dark:text-gray-100">KADAM PRODUCTION</h1>
+            <div className="mx-auto mb-5 flex items-center justify-center">
+              <BrandLogo logoUrl={logoUrl} variant="login" />
+            </div>
+            {/* Brand mark is in the logo; keep only a short supporting line under it. */}
             <p className="text-sm text-gray-500 dark:text-gray-400">Professional Event Services</p>
           </div>
 
@@ -97,7 +87,7 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
           </form>
         </div>
         <p className="mt-4 text-center text-xs text-white/50">
-          &copy; {year} Kadam Production / Powered by{" "}
+          &copy; {year} Parth Production / Powered by{" "}
           <a href="https://trishulhub.in" target="_blank" rel="noopener noreferrer" className="font-medium text-white/70 underline hover:text-white">
             Trishulhub
           </a>

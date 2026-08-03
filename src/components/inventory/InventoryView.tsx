@@ -190,7 +190,7 @@ function AddModal({ categories, subcategories, onClose }: { categories: { id: nu
         <div><Label>Item Name *</Label><Input name="name" required placeholder="e.g. SPEAKER JBL" /></div>
         <div><Label>Description</Label><Input name="description" placeholder="Item description / specs" /></div>
         <div><Label>Quantity *</Label><Input name="quantity" type="number" min={0} required defaultValue={1} /></div>
-        <p className="text-xs text-gray-400">Barcode is auto-generated (KP…) on save.</p>
+        <p className="text-xs text-gray-400">Barcode is auto-generated (PP…) on save.</p>
         <div className="flex justify-end gap-2 pt-2"><Button variant="ghost" type="button" onClick={onClose}>Cancel</Button><Button type="submit" disabled={pending}>{pending ? "Saving…" : "Add Item"}</Button></div>
       </form>
     </Modal>

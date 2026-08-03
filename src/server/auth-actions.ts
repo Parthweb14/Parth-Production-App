@@ -11,7 +11,8 @@ import {
   resetPasswordWithToken,
   verifyEmailOwnership,
 } from "@/lib/auth";
-import { createAuthCaptcha } from "@/lib/auth-security";
+import { createAuthCaptcha, getRequestIp } from "@/lib/auth-security";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 export async function logoutAction() {
   await logout();
@@ -121,6 +122,11 @@ export async function resetPasswordAction(_prev: { ok?: boolean; error?: string 
 }
 
 export async function refreshCaptchaAction() {
+  const ip = await getRequestIp();
+  const rl = await checkRateLimit(`captcha_refresh:${ip}`, { max: 30, windowMs: 5 * 60 * 1000 });
+  if (!rl.allowed) {
+    return { error: "Too many requests. Please wait and try again." } as const;
+  }
   return createAuthCaptcha();
 }
 
