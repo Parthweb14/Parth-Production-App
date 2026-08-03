@@ -41,15 +41,14 @@ export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
           <div className="mb-6 text-center">
             {logoUrl ? (
               <div className="mx-auto mb-5 flex items-center justify-center">
-                <div className="logo-plate inline-flex items-center justify-center rounded-xl px-2.5 py-2">
+                <div className="logo-plate inline-flex items-center justify-center overflow-hidden rounded-xl">
                   <img
-                    src="/api/icon?trim=1&h=228&v=5"
-                    srcSet="/api/icon?trim=1&h=152&v=5 1x, /api/icon?trim=1&h=304&v=5 2x, /api/icon?trim=1&h=456&v=5 3x"
+                    src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=6`}
                     alt="Parth Production"
                     width={280}
-                    height={76}
+                    height={280}
                     decoding="async"
-                    className="h-[4.5rem] w-auto max-w-[280px] object-contain sm:h-[4.75rem]"
+                    className="h-[5.5rem] w-auto max-w-[280px] object-contain sm:h-24"
                   />
                 </div>
               </div>

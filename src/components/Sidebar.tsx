@@ -72,15 +72,14 @@ export function Sidebar({
       <div className="brand-header px-5 py-5">
         {logoUrl ? (
           <div className="mb-3 flex items-center justify-center">
-            <div className="logo-plate inline-flex w-full max-w-[210px] items-center justify-center rounded-xl px-3 py-2.5">
+            <div className="logo-plate inline-flex w-full max-w-[210px] items-center justify-center overflow-hidden rounded-xl">
               <img
-                src="/api/icon?trim=1&h=168&v=5"
-                srcSet="/api/icon?trim=1&h=112&v=5 1x, /api/icon?trim=1&h=224&v=5 2x, /api/icon?trim=1&h=336&v=5 3x"
+                src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=6`}
                 alt="Logo"
                 width={210}
-                height={56}
+                height={210}
                 decoding="async"
-                className="h-12 w-auto max-w-full object-contain sm:h-14"
+                className="h-16 w-auto max-w-full object-contain sm:h-[4.5rem]"
               />
             </div>
           </div>

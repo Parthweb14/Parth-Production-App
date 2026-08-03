@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto-secret";
+import { BRAND_LOGO_VERSION } from "@/lib/settings";
 
 async function upsertSetting(key: string, value: string) {
   await db
@@ -24,6 +25,7 @@ export async function setLogo(dataUrl: string) {
   }
   if (dataUrl.length > MAX_BYTES) throw new Error("Logo too large. Please use an image under ~900KB.");
   await upsertSetting("logo_url", dataUrl);
+  await upsertSetting("logo_brand_version", BRAND_LOGO_VERSION);
   revalidatePath("/", "layout");
 }
 
@@ -31,6 +33,7 @@ export async function removeLogo() {
   const user = await requireAdmin();
   if (!user) throw new Error("Unauthorized");
   await db.delete(schema.settings).where(eq(schema.settings.key, "logo_url"));
+  await db.delete(schema.settings).where(eq(schema.settings.key, "logo_brand_version"));
   revalidatePath("/", "layout");
 }
 

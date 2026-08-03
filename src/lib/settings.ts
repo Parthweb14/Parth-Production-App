@@ -4,6 +4,11 @@ import { db, schema } from "./db";
 import { unstable_cache as nextCache } from "next/cache";
 import { decryptSecret } from "./crypto-secret";
 
+/** Bundled brand logo (login + sidebar). Admin uploads override this. */
+export const DEFAULT_BRAND_LOGO_URL = "/parth-logo.png";
+/** Bumped when the default brand asset changes so old DB uploads are replaced. */
+export const BRAND_LOGO_VERSION = "2026-08-parth-bg";
+
 async function _getSetting(key: string): Promise<string | null> {
   const row = await db.select().from(schema.settings).where(eq(schema.settings.key, key)).limit(1).then((r) => r[0]);
   return row?.value ?? null;
@@ -12,8 +17,14 @@ async function _getSetting(key: string): Promise<string | null> {
 export const getSetting = nextCache(_getSetting, ["settings"], { revalidate: 30 });
 
 export async function getLogoUrl(): Promise<string | null> {
-  const v = await getSetting("logo_url");
-  return v && v.length > 0 ? v : null;
+  try {
+    const [v, version] = await Promise.all([getSetting("logo_url"), getSetting("logo_brand_version")]);
+    // Show custom upload only after this brand refresh; otherwise use the new default.
+    if (v && v.length > 0 && version === BRAND_LOGO_VERSION) return v;
+  } catch {
+    // DB unavailable — still show the bundled logo.
+  }
+  return DEFAULT_BRAND_LOGO_URL;
 }
 
 export async function getScanEnabled(): Promise<boolean> {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFile } from "fs/promises";
+import path from "path";
 import sharp from "sharp";
-import { getSetting } from "@/lib/settings";
+import { DEFAULT_BRAND_LOGO_URL, getLogoUrl } from "@/lib/settings";
 
 // Avoid build-time page-data collection requiring a live DB connection.
 export const dynamic = "force-dynamic";
@@ -20,6 +22,14 @@ async function logoToBuffer(logoUrl: string): Promise<Buffer | null> {
     const res = await fetch(logoUrl, { cache: "force-cache" });
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());
+  }
+  if (logoUrl.startsWith("/") && !logoUrl.startsWith("//") && !logoUrl.includes("..")) {
+    try {
+      const filePath = path.join(process.cwd(), "public", logoUrl.replace(/^\//, ""));
+      return await readFile(filePath);
+    } catch {
+      return null;
+    }
   }
   return null;
 }
@@ -66,7 +76,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const logoUrl = await getSetting("logo_url");
+    const logoUrl = (await getLogoUrl()) || DEFAULT_BRAND_LOGO_URL;
     if (!logoUrl) {
       return new NextResponse(null, { status: 204 });
     }
