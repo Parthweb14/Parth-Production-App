@@ -38,8 +38,8 @@ function sanitizeRedirect(path: string): string {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Static documents (guides, etc.) are public downloads — no login wall.
-  if (pathname.endsWith(".pdf")) {
+  // Static documents and brand assets are public — no login wall.
+  if (pathname.endsWith(".pdf") || /\.(?:png|jpe?g|webp|gif|svg|ico)$/i.test(pathname)) {
     return NextResponse.next();
   }
 
@@ -85,5 +85,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|uploads|api|.*\\.pdf$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|uploads|api|.*\\.(?:pdf|png|jpe?g|webp|gif|svg|ico)$).*)"],
 };

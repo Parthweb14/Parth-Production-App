@@ -4,8 +4,11 @@ import { db, schema } from "./db";
 import { unstable_cache as nextCache } from "next/cache";
 import { decryptSecret } from "./crypto-secret";
 
-/** Bundled brand logo (login + sidebar). Admin uploads override this. */
-export const DEFAULT_BRAND_LOGO_URL = "/parth-logo.png";
+/** Bundled/remote brand logo (login + sidebar). Admin uploads override this. */
+export const DEFAULT_BRAND_LOGO_URL =
+  "https://pub-f7e582206f9d4cf49fa1d710c6c8b5e9.r2.dev/Parth%20logo%20bg%20.png";
+/** Local fallback if the remote asset is unreachable in some environments. */
+export const LOCAL_BRAND_LOGO_URL = "/parth-logo.png";
 /** Bumped when the default brand asset changes so old DB uploads are replaced. */
 export const BRAND_LOGO_VERSION = "2026-08-parth-bg";
 
@@ -22,7 +25,7 @@ export async function getLogoUrl(): Promise<string | null> {
     // Show custom upload only after this brand refresh; otherwise use the new default.
     if (v && v.length > 0 && version === BRAND_LOGO_VERSION) return v;
   } catch {
-    // DB unavailable — still show the bundled logo.
+    // DB unavailable — still show the brand logo.
   }
   return DEFAULT_BRAND_LOGO_URL;
 }

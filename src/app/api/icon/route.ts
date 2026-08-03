@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
-import { DEFAULT_BRAND_LOGO_URL, getLogoUrl } from "@/lib/settings";
+import { DEFAULT_BRAND_LOGO_URL, LOCAL_BRAND_LOGO_URL, getLogoUrl } from "@/lib/settings";
 
 // Avoid build-time page-data collection requiring a live DB connection.
 export const dynamic = "force-dynamic";
@@ -76,12 +76,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const logoUrl = (await getLogoUrl()) || DEFAULT_BRAND_LOGO_URL;
-    if (!logoUrl) {
-      return new NextResponse(null, { status: 204 });
+    const logoUrl = (await getLogoUrl()) || DEFAULT_BRAND_LOGO_URL || LOCAL_BRAND_LOGO_URL;
+    let input = await logoToBuffer(logoUrl);
+    if (!input && logoUrl !== LOCAL_BRAND_LOGO_URL) {
+      input = await logoToBuffer(LOCAL_BRAND_LOGO_URL);
     }
-
-    const input = await logoToBuffer(logoUrl);
     if (!input) {
       return new NextResponse(null, { status: 204 });
     }

@@ -43,7 +43,7 @@ export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
               <div className="mx-auto mb-5 flex items-center justify-center">
                 <div className="logo-plate inline-flex items-center justify-center overflow-hidden rounded-xl">
                   <img
-                    src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=6`}
+                    src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=7`}
                     alt="Parth Production"
                     width={280}
                     height={280}

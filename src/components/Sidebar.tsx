@@ -74,7 +74,7 @@ export function Sidebar({
           <div className="mb-3 flex items-center justify-center">
             <div className="logo-plate inline-flex w-full max-w-[210px] items-center justify-center overflow-hidden rounded-xl">
               <img
-                src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=6`}
+                src={`${logoUrl}${logoUrl.includes("?") ? "&" : "?"}v=7`}
                 alt="Logo"
                 width={210}
                 height={210}
