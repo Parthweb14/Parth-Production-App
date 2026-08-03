@@ -1,4 +1,4 @@
-# 🔴 KADAM PRODUCTION — COMPLETE BUG & ISSUE REPORT
+# 🔴 PARTH PRODUCTION — BUG & ISSUE REPORT (historical; originally Kadam Production)
 > Generated: 2026-07-12 | Total: **92 issues**
 
 ---
@@ -27,7 +27,7 @@
 | **H3** | Auth | **Self-deactivation lockout** — admin can toggle their own `active=false`, same lockout as H1. | `employee-actions.ts:79` |
 | **H4** | Auth | **Insecure OTP generation** — `Math.random()` used in both `generateOtp()` and `invoice-otp/route.ts`. Not cryptographically secure. | `auth.ts:247`, `invoice-otp/route.ts:43` |
 | **H5** | Auth | **Setup route auth bypass** — manual JWT check skips session revocation verification; revoked admin sessions still pass. | `setup/route.ts:183-194` |
-| **H6** | Auth | **Setup seeds admin with well-known hardcoded password** — `admin@kadamproduction.in / admin123` | `setup/route.ts:244` |
+| **H6** | Auth | **Setup seeds admin with well-known hardcoded password** — `admin@parthproduction.com / admin123` | `setup/route.ts:244` |
 | **H7** | Auth | **Email enumeration in forgot-password** — returns distinct "No account found" vs success, unlike login's generic message. | `auth.ts:261` |
 | **H8** | Orders | **`contactPerson` always stored as literal "null"** — no `<input name="contactPerson">` in create/edit forms, `String(null)` = `"null"`. Every order gets corrupted event name. | `OrdersView.tsx:208`, `ManageOrderView.tsx:473` |
 | **H9** | Orders | **Edit modal missing transport contact fields** — `transportContactName`/`transportContactPhone` in create but absent from edit. Data invisible & uneditable after creation. | `ManageOrderView.tsx:496-509` |
@@ -64,8 +64,8 @@
 | **M5** | Auth | `changePassword` queries without `deletedAt` filter | `auth.ts:291,294` |
 | **M6** | Auth | ForgotPasswordForm error messages have no light-mode styling (dark-only `bg-red-950/50`) | `ForgotPasswordForm.tsx:62,90,122` |
 | **M7** | Auth | Password `minLength` mismatch — HTML says 6, server says 8 (ForgotPasswordForm + ChangePasswordView) | `ForgotPasswordForm.tsx:132`, `ChangePasswordView.tsx:22` |
-| **M8** | Auth | Email hardcoded URL — `kadamproduction-opencode.vercel.app` instead of env variable `NEXT_PUBLIC_BASE_URL` | `email.ts:41,61` |
-| **M9** | Dashboard | Sidebar always shows "KP Admin" even for employees | `Sidebar.tsx:80` |
+| **M8** | Auth | Email hardcoded URL — `parth-production-app.vercel.app` instead of env variable `NEXT_PUBLIC_BASE_URL` | `email.ts:41,61` |
+| **M9** | Dashboard | Sidebar always shows "Parth Admin" even for employees | `Sidebar.tsx:80` |
 | **M10** | Dashboard | `SetupDoneBtn` doesn't refresh UI after server action — stale `done` prop | `SetupDoneBtn.tsx:11-16` |
 | **M11** | Dashboard | No ThemeToggle on mobile top bar — must open drawer to switch theme | `DashboardShell.tsx:47-53` |
 | **M12** | Employees | No search/filter or pagination on employee listing — fetch ALL at once | `employees/page.tsx:12-15` |

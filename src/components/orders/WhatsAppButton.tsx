@@ -28,13 +28,13 @@ export function WhatsAppButton({
 
   const msg =
     `Hello ${clientName},\n\n` +
-    `Here are your invoice details from Kadam Production:\n` +
+    `Here are your invoice details from Parth Production:\n` +
     `Order Number: ${orderNum}\n` +
     `Total Amount: ${formatINR(total)}\n` +
     `Advance Paid: ${formatINR(paid)}\n` +
     `Balance Due: ${formatINR(due)}\n\n` +
-    `View your invoice online: ${invoiceUrl ?? `https://app.kadamproduction.in`}\n\n` +
-    `Thank you for choosing Kadam Production.`;
+    `View your invoice online: ${invoiceUrl ?? `https://parth-production-app.vercel.app`}\n\n` +
+    `Thank you for choosing Parth Production.`;
 
   const waUrl = valid ? `https://wa.me/${num}?text=${encodeURIComponent(msg)}` : null;
 

@@ -3,15 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { getMutableUser } from "@/lib/auth";
+import { getScanEnabled } from "@/lib/settings";
 
 export async function scanItem(
   barcode: string,
   action: "checkout" | "checkin" | "damaged",
   orderId?: number
 ) {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user) throw new Error("Unauthorized");
+
+  // Enforce scan_enabled for employees (admins may always scan for ops recovery).
+  if (user.role !== "admin") {
+    const enabled = await getScanEnabled();
+    if (!enabled) throw new Error("Scanning is currently disabled.");
+  }
 
   const code = barcode.trim();
   if (!code) throw new Error("Enter a barcode.");
@@ -53,6 +60,18 @@ export async function scanItem(
       throw new Error(`Cannot check out to a "${order.status}" order. Only ongoing events are eligible.`);
     }
 
+    // Employees may only scan for orders they are assigned to (IDOR fix).
+    if (user.role !== "admin") {
+      const assigned = await db
+        .select({ id: schema.orderAssignments.id })
+        .from(schema.orderAssignments)
+        .where(
+          and(eq(schema.orderAssignments.orderId, orderId), eq(schema.orderAssignments.userId, user.id))
+        )
+        .limit(1);
+      if (!assigned.length) throw new Error("You are not assigned to this order.");
+    }
+
     await db
       .update(schema.items)
       .set({ status: "busy", currentOrderId: orderId })
@@ -80,6 +99,24 @@ export async function scanItem(
     }
     revalidatePath("/scan");
     return { ok: true, msg: `${item.name} → checked out to ${order.clientName}.` };
+  }
+
+  // checkin / damaged — employees need an assigned current order on the item.
+  if (user.role !== "admin") {
+    if (!item.currentOrderId) {
+      throw new Error("This item is not checked out to an assigned order.");
+    }
+    const assigned = await db
+      .select({ id: schema.orderAssignments.id })
+      .from(schema.orderAssignments)
+      .where(
+        and(
+          eq(schema.orderAssignments.orderId, item.currentOrderId),
+          eq(schema.orderAssignments.userId, user.id)
+        )
+      )
+      .limit(1);
+    if (!assigned.length) throw new Error("You are not assigned to this order.");
   }
 
   if (action === "checkin") {

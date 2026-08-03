@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   const manifest = {
-    name: "Kadam Production",
-    short_name: "KadamProd",
+    name: "Parth Production",
+    short_name: "ParthProd",
     description: "Professional Event Services — operations dashboard",
     start_url: "/",
     display: "standalone",
@@ -12,8 +12,8 @@ export async function GET() {
     theme_color: "#0f172a",
     orientation: "portrait-primary",
     icons: [
-      { src: "/api/icon", sizes: "192x192", type: "image/svg+xml", purpose: "any" },
-      { src: "/api/icon", sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" },
+      { src: "/api/icon?size=192&v=9", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/api/icon?size=512&v=9", sizes: "512x512", type: "image/png", purpose: "any maskable" },
     ],
   };
 

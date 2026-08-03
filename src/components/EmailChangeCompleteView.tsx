@@ -13,19 +13,11 @@ type Access = {
   requestId: string;
   currentEmail: string;
   requestedNewEmail: string | null;
-  accessToken?: string;
   accessOtp?: string;
 };
 
-export function EmailChangeCompleteView({
-  initialAccess,
-  tokenFromUrl,
-}: {
-  initialAccess: Access | null;
-  tokenFromUrl?: string;
-  initialError?: string;
-}) {
-  const [access, setAccess] = useState<Access | null>(initialAccess);
+export function EmailChangeCompleteView() {
+  const [access, setAccess] = useState<Access | null>(null);
   const [otpState, otpAction, otpPending] = useActionState(
     async (prev: EmailChangeActionState, fd: FormData) => {
       const res = await openEmailChangeFormWithOtpAction(prev, fd);
@@ -60,7 +52,7 @@ export function EmailChangeCompleteView({
       <Card className="mx-auto max-w-md p-6">
         <h1 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">Open email change form</h1>
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          Use the one-time OTP from your approval email (link access is preferred when available).
+          Use the one-time OTP from your approval email with your current account address.
         </p>
         <form action={otpAction} className="space-y-4">
           <div>
@@ -90,9 +82,6 @@ export function EmailChangeCompleteView({
       </p>
       <form action={credAction} className="space-y-4">
         <input type="hidden" name="requestId" value={access.requestId} />
-        {access.accessToken || tokenFromUrl ? (
-          <input type="hidden" name="accessToken" value={access.accessToken || tokenFromUrl} />
-        ) : null}
         {access.accessOtp ? <input type="hidden" name="accessOtp" value={access.accessOtp} /> : null}
         <div>
           <Label>Current email</Label>

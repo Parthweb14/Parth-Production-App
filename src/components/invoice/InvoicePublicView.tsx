@@ -134,7 +134,7 @@ export function InvoicePublicView({ orderId, orderNum }: { orderId: number; orde
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4 dark:from-gray-900 dark:to-gray-950">
         <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white/70 p-8 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
           <div className="mb-6 text-center">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Kadam Production</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Parth Production</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Invoice Access — {orderNum}</p>
           </div>
 
@@ -192,12 +192,13 @@ export function InvoicePublicView({ orderId, orderNum }: { orderId: number; orde
 
   // step === "view" — render the invoice from fetched data
   if (!invoice) return null;
-  const { order, paid, gstNumber, gstPercentage, gstAmount, total, due, sameAddress, billingAddr, eventAddr } = invoice;
+  const { order, orderNum: verifiedOrderNum, paid, gstNumber, gstPercentage, gstAmount, total, due, sameAddress, billingAddr, eventAddr } = invoice;
+  const displayNum = verifiedOrderNum || orderNum;
 
   return (
     <div className="mx-auto max-w-3xl p-3 sm:p-8">
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-gray-500">Invoice — {orderNum}</p>
+        <p className="text-sm text-gray-500">Invoice — {displayNum}</p>
         <button onClick={() => window.print()} className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
           Print / Download PDF
         </button>
@@ -206,13 +207,13 @@ export function InvoicePublicView({ orderId, orderNum }: { orderId: number; orde
       <div className="print-area rounded-lg border border-gray-800 bg-white p-5 text-black sm:p-8">
         <div className="flex flex-col items-start justify-between gap-4 border-b-2 border-black pb-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-2xl font-black tracking-wide sm:text-3xl">KADAM PRODUCTION</h1>
-            <p className="mt-0.5 text-xs text-gray-500">kadamproduction.in</p>
+            <h1 className="text-2xl font-black tracking-wide sm:text-3xl">PARTH PRODUCTION</h1>
+            <p className="mt-0.5 text-xs text-gray-500">parthproduction.in</p>
           </div>
           <div className="text-left sm:text-right">
             <p className="text-2xl font-black tracking-widest sm:text-3xl">INVOICE</p>
             <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Order Number</p>
-            <p className="text-sm font-bold">{orderNum}</p>
+            <p className="text-sm font-bold">{displayNum}</p>
           </div>
         </div>
 
@@ -275,8 +276,8 @@ export function InvoicePublicView({ orderId, orderNum }: { orderId: number; orde
         {gstNumber && <p className="mt-2 text-xs text-gray-600">GST Number: {gstNumber}</p>}
 
         <div className="mt-6 border-t border-black pt-4 text-center text-xs text-gray-600">
-          <p>Thank you for choosing Kadam Production.</p>
-          <p className="mt-1">&copy; {new Date().getFullYear()} Kadam Production — kadamproduction.in</p>
+          <p>Thank you for choosing Parth Production.</p>
+          <p className="mt-1">&copy; {new Date().getFullYear()} Parth Production — parthproduction.in</p>
         </div>
       </div>
     </div>

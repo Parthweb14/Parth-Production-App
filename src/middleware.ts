@@ -19,7 +19,7 @@ async function payloadFromToken(
   if (!token) return null;
   try {
     const secretStr = process.env.AUTH_SECRET;
-    if (!secretStr || secretStr.trim().length < 8) return null;
+    if (!secretStr || secretStr.trim().length < 32) return null;
     const secret = new TextEncoder().encode(secretStr);
     const { payload } = await jwtVerify(token, secret);
     const role = payload.role as "admin" | "employee" | undefined;
@@ -37,6 +37,11 @@ function sanitizeRedirect(path: string): string {
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Static documents and brand assets are public — no login wall.
+  if (pathname.endsWith(".pdf") || /\.(?:png|jpe?g|webp|gif|svg|ico)$/i.test(pathname)) {
+    return NextResponse.next();
+  }
 
   if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return NextResponse.next();
@@ -80,5 +85,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|uploads|api).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|uploads|api|.*\\.(?:pdf|png|jpe?g|webp|gif|svg|ico)$).*)"],
 };

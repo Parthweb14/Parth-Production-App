@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { ThemeProviderWrapper } from "@/components/ThemeProviderWrapper";
+import { ThemeProvider } from "@/lib/theme";
+import { AgentationProvider } from "@/components/AgentationProvider";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Kadam Production",
+  title: "Parth Production",
   description: "Professional Event Services — operations dashboard",
   manifest: "/api/manifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "KadamProd",
+    title: "ParthProd",
   },
 };
 
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 
 const themeScript = `
 (function() {
-  var t = localStorage.getItem('kp-theme') || 'system';
+  var t = localStorage.getItem('pp-theme') || 'system';
   var d = document.documentElement;
   if (t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     d.classList.add('dark');
@@ -39,16 +40,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/favicon.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/favicon.png" />
-        <link rel="apple-touch-icon" sizes="120x120" href="/favicon.png" />
-        <link rel="apple-touch-icon-precomposed" href="/favicon.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/api/icon?size=32&v=9" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/api/icon?size=192&v=9" />
+        <link rel="shortcut icon" href="/api/icon?size=32&v=9" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/api/icon?size=180&v=9" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/api/icon?size=152&v=9" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/api/icon?size=120&v=9" />
+        <link rel="apple-touch-icon-precomposed" href="/api/icon?size=180&v=9" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <ThemeProviderWrapper>{children}</ThemeProviderWrapper>
+        <ThemeProvider>{children}</ThemeProvider>
+        <AgentationProvider />
       </body>
     </html>
   );

@@ -22,7 +22,7 @@ export function AuthCaptchaFields({
     if (required && !local) {
       startTransition(async () => {
         const next = await refreshCaptchaAction();
-        setLocal(next);
+        if (next && "id" in next && "question" in next) setLocal(next);
       });
     }
   }, [required, local]);
@@ -50,7 +50,7 @@ export function AuthCaptchaFields({
         onClick={() =>
           startTransition(async () => {
             const next = await refreshCaptchaAction();
-            setLocal(next);
+            if (next && "id" in next && "question" in next) setLocal(next);
           })
         }
         className="text-xs text-amber-200/80 underline hover:text-amber-100"

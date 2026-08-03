@@ -3,25 +3,6 @@ import { count, eq, and, isNull, inArray, sql, ne } from "drizzle-orm";
 import { db, schema } from "./db";
 import type { ItemStatus, OrderStatus } from "@/drizzle/schema";
 
-/** Committed quantity of an item across active orders (optionally on a given event date). */
-export async function committedQty(itemId: number, onDate?: string): Promise<number> {
-  const activeStatuses: OrderStatus[] = ["upcoming", "ongoing"];
-  const conditions = [
-    eq(schema.orderItems.itemId, itemId),
-    inArray(schema.orders.status, activeStatuses),
-    isNull(schema.orders.deletedAt),
-  ];
-  if (onDate) conditions.push(eq(schema.orders.eventDate, onDate));
-
-  const rows = await db
-    .select({ total: sql<number>`coalesce(sum(${schema.orderItems.quantity}),0)` })
-    .from(schema.orderItems)
-    .innerJoin(schema.orders, eq(schema.orderItems.orderId, schema.orders.id))
-    .where(and(...conditions));
-
-  return Number(rows[0]?.total ?? 0);
-}
-
 export type ItemRow = {
   id: number;
   name: string;
@@ -141,40 +122,4 @@ export async function countAssignedOrders(userId: number) {
     .innerJoin(schema.orders, eq(schema.orderAssignments.orderId, schema.orders.id))
     .where(and(eq(schema.orderAssignments.userId, userId), ne(schema.orders.status, "cancelled")));
   return r?.v ?? 0;
-}
-
-/** Finance totals - OPTIMIZED: single query with conditional aggregation */
-export async function getFinanceTotals() {
-  const [row] = await db
-    .select({
-      totalIncome: sql<number>`coalesce(sum(case when ${schema.finance.type} = 'income' then ${schema.finance.amount} end), 0)`,
-      totalExpense: sql<number>`coalesce(sum(case when ${schema.finance.type} = 'expense' then ${schema.finance.amount} end), 0)`,
-    })
-    .from(schema.finance)
-    .where(isNull(schema.finance.deletedAt));
-
-  const totalIncome = Number(row?.totalIncome ?? 0);
-  const totalExpense = Number(row?.totalExpense ?? 0);
-
-  // Total Due = sum of (budget - paid) across non-cancelled orders
-  const [dueRow] = await db
-    .select({
-      v: sql<number>`coalesce(sum(
-        case when ${schema.orders.totalBudget} > 0
-        then max(0, ${schema.orders.totalBudget} - coalesce((
-          select sum(${schema.finance.amount}) from ${schema.finance}
-          where ${schema.finance.orderId} = ${schema.orders.id}
-          and ${schema.finance.type} = 'income'
-          and ${schema.finance.deletedAt} is null
-        ), 0))
-        else 0 end
-      ), 0)`,
-    })
-    .from(schema.orders)
-    .where(and(isNull(schema.orders.deletedAt), sql`${schema.orders.status} != 'cancelled'`));
-
-  const totalDue = Number(dueRow?.v ?? 0);
-  const netProfit = totalIncome - totalExpense;
-
-  return { totalIncome, totalExpense, totalDue, netProfit };
 }

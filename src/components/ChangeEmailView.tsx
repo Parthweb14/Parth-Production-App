@@ -39,7 +39,7 @@ export function AdminChangeEmailView({ currentEmail }: { currentEmail: string })
           Current email: <span className="font-semibold text-gray-900 dark:text-gray-100">{currentEmail}</span>
         </p>
         <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          You must be logged in. We send a one-time OTP and link to the new inbox (1 hour, single-use). Your email only changes after verification.
+          You must be logged in. We send a one-time OTP to the new inbox (1 hour, single-use). Your email only changes after verification.
         </p>
         <form action={startAction} className="space-y-4">
           <div>
@@ -51,7 +51,7 @@ export function AdminChangeEmailView({ currentEmail }: { currentEmail: string })
             <Input name="newEmail" type="email" required autoComplete="email" />
           </div>
           {startState.error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-kp-danger">{startState.error}</div>
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-kp-danger dark:bg-red-950/50 dark:text-red-400">{startState.error}</div>
           )}
           {startState.success && (
             <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">
@@ -74,7 +74,7 @@ export function AdminChangeEmailView({ currentEmail }: { currentEmail: string })
               <Input name="otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required placeholder="6-digit code" />
             </div>
             {confirmState.error && (
-              <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-kp-danger">{confirmState.error}</div>
+              <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-kp-danger dark:bg-red-950/50 dark:text-red-400">{confirmState.error}</div>
             )}
             <Button type="submit" className="w-full" disabled={confirmPending}>
               {confirmPending ? "Verifying…" : "Confirm email change"}
@@ -113,7 +113,7 @@ export function EmployeeChangeEmailView({
             <Input name="newEmail" type="email" placeholder="new@example.com" />
           </div>
           {state.error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-kp-danger">{state.error}</div>
+            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-kp-danger dark:bg-red-950/50 dark:text-red-400">{state.error}</div>
           )}
           {state.success && (
             <div className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:bg-gray-800 dark:text-gray-300">

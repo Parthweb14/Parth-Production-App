@@ -6,16 +6,10 @@ import { eq, and, isNull } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { db, schema } from "@/lib/db";
 import { formatOrderNumber } from "@/lib/invoice-number";
-import { formatINR } from "@/lib/utils";
 import { getGstSettings } from "@/lib/settings";
+import { getAuthSecretBytes } from "@/lib/auth-secret";
 
 const COOKIE_NAME = "kp_inv_access";
-
-function getSecret(): Uint8Array {
-  const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET is required.");
-  return new TextEncoder().encode(s);
-}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,17 +17,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const orderId = Number(id);
     if (!orderId) return NextResponse.json({ error: "Invalid order" }, { status: 400 });
 
-    // Verify the access cookie
     const token = req.cookies.get(COOKIE_NAME)?.value;
     if (!token) return NextResponse.json({ error: "Not verified" }, { status: 403 });
+
+    let payloadEmail = "";
     try {
-      const { payload } = await jwtVerify(token, getSecret());
-      if (payload.orderId !== orderId) return NextResponse.json({ error: "Not verified for this order" }, { status: 403 });
+      const { payload } = await jwtVerify(token, getAuthSecretBytes());
+      if (payload.orderId !== orderId) {
+        return NextResponse.json({ error: "Not verified for this order" }, { status: 403 });
+      }
+      payloadEmail = String(payload.email || "")
+        .toLowerCase()
+        .trim();
     } catch {
       return NextResponse.json({ error: "Invalid or expired access" }, { status: 403 });
     }
 
-    // Cookie is valid — load the full invoice data
     const order = await db
       .select()
       .from(schema.orders)
@@ -41,6 +40,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .limit(1)
       .then((r) => r[0]);
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    // Bind JWT to current contact email so old recipients lose access after email changes.
+    const currentEmail = (order.contactEmail ?? "").toLowerCase().trim();
+    if (!payloadEmail || !currentEmail || payloadEmail !== currentEmail) {
+      return NextResponse.json({ error: "Not verified for this order" }, { status: 403 });
+    }
 
     const txns = await db
       .select({ type: schema.finance.type, amount: schema.finance.amount })

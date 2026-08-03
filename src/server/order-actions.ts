@@ -3,23 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { getCurrentUser, requireAdmin } from "@/lib/auth";
-import { createNotification } from "./notification-actions";
+import { getMutableUser, requireAdmin } from "@/lib/auth";
+import { dispatchNotification } from "./notification-dispatcher";
 import { EVENT_CATEGORIES } from "@/drizzle/schema";
 import type { OrderStatus } from "@/drizzle/schema";
 import { formatOrderNumber } from "@/lib/invoice-number";
 import { formatINR } from "@/lib/utils";
 import { sendEmail } from "@/lib/email";
-
-function escapeHtml(s: unknown): string {
-  if (s === null || s === undefined) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "@/lib/escape-html";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   upcoming: ["ongoing", "completed", "cancelled"],
@@ -222,16 +213,16 @@ export async function sendInvoiceEmail(orderId: number) {
   const total = Number(order.totalBudget);
   const due = Math.max(0, total - paid);
   const orderNum = formatOrderNumber(order.id, order.createdAt);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://app.kadamproduction.in";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://parth-production-app.vercel.app";
   const invoiceUrl = `${baseUrl}/invoice/${orderId}`;
   const html = `
     <div style="max-width:500px;margin:0 auto;font-family:Arial,sans-serif;color:#333">
       <div style="text-align:center;padding:24px 0">
-        <h2 style="margin:0;color:#1e40af">Kadam Production</h2>
+        <h2 style="margin:0;color:#1e40af">Parth Production</h2>
         <p style="color:#6b7280;font-size:13px">Invoice — ${escapeHtml(orderNum)}</p>
       </div>
       <p>Hello <strong>${escapeHtml(order.clientName)}</strong>,</p>
-      <p>Thank you for choosing Kadam Production. Here is your invoice summary:</p>
+      <p>Thank you for choosing Parth Production. Here is your invoice summary:</p>
       <table style="width:100%;border-collapse:collapse;margin:16px 0">
         <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;background:#f9fafb">Order</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${orderNum}</td></tr>
         <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600;background:#f9fafb">Total Amount</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${formatINR(total)}</td></tr>
@@ -240,10 +231,10 @@ export async function sendInvoiceEmail(orderId: number) {
       </table>
       <a href="${invoiceUrl}" style="display:inline-block;margin-top:12px;padding:10px 24px;background:#1e40af;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">View Full Invoice</a>
       <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb" />
-      <p style="font-size:12px;color:#6b7280">Kadam Production — ${new Date().getFullYear()}</p>
+      <p style="font-size:12px;color:#6b7280">Parth Production — ${new Date().getFullYear()}</p>
     </div>
   `;
-  await sendEmail({ to: order.contactEmail, subject: `Invoice ${orderNum} — Kadam Production`, html });
+  await sendEmail({ to: order.contactEmail, subject: `Invoice ${orderNum} — Parth Production`, html });
 }
 
 export async function updateOrderStatus(id: number, status: string, completeMode?: "automatic" | "manual") {
@@ -343,7 +334,7 @@ export async function saveAssignments(orderId: number, employeeIds: number[]) {
   if (toAdd.length) {
     await db.insert(schema.orderAssignments).values(toAdd.map((userId) => ({ orderId, userId })));
     for (const uid of toAdd) {
-      await createNotification({
+      await dispatchNotification({
         userId: uid,
         orderId,
         type: "order_assigned",
@@ -452,7 +443,7 @@ export async function unreserveItem(orderId: number, itemId: number) {
 }
 
 export async function markSetupDone(orderId: number) {
-  const user = await getCurrentUser();
+  const user = await getMutableUser();
   if (!user) throw new Error("Unauthorized");
 
   const [order] = await db
@@ -493,7 +484,7 @@ export async function markSetupDone(orderId: number) {
     .from(schema.users)
     .where(and(eq(schema.users.role, "admin"), isNull(schema.users.deletedAt), eq(schema.users.active, true)));
   for (const admin of admins) {
-    await createNotification({
+    await dispatchNotification({
       userId: admin.id,
       orderId,
       type: "setup_done",

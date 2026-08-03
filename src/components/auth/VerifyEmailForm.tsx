@@ -19,7 +19,7 @@ export function VerifyEmailForm() {
   }, [state, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black p-4">
+    <div className="dark flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black p-4">
       <div className="w-full max-w-md">
         <div className="glass rounded-2xl p-8 shadow-2xl">
           <div className="mb-6 text-center">
@@ -81,7 +81,7 @@ export function VerifyEmailForm() {
             </Link>
           </div>
         </div>
-        <p className="mt-4 text-center text-xs text-white/50">&copy; {year} Kadam Production</p>
+        <p className="mt-4 text-center text-xs text-white/50">&copy; {year} Parth Production</p>
       </div>
     </div>
   );
