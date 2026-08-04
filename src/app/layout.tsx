@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/lib/theme";
-import { AgentationProvider } from "@/components/AgentationProvider";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "Parth Production",
@@ -51,7 +50,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
-        <AgentationProvider />
       </body>
     </html>
   );
