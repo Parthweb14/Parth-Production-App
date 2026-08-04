@@ -30,9 +30,6 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
             <div className="mx-auto flex items-center justify-center leading-none">
               <BrandLogo logoUrl={logoUrl} variant="login" />
             </div>
-            <h1 className="mt-1.5 text-xl font-bold leading-tight tracking-wide text-gray-100 sm:mt-2 sm:text-2xl">
-              Parth Production
-            </h1>
           </div>
 
           {emailChanged && (
