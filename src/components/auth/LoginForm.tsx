@@ -27,11 +27,9 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
       <div className="w-full max-w-md">
         <div className="glass rounded-2xl p-8 shadow-2xl">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-5 flex items-center justify-center">
+            <div className="mx-auto mb-2 flex items-center justify-center">
               <BrandLogo logoUrl={logoUrl} variant="login" />
             </div>
-            {/* Brand mark is in the logo; keep only a short supporting line under it. */}
-            <p className="text-sm text-gray-500 dark:text-gray-400">Professional Event Services</p>
           </div>
 
           {emailChanged && (
@@ -76,12 +74,9 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
             >
               {pending ? "Signing in\u2026" : "LOGIN"}
             </button>
-            <div className="flex items-center justify-between text-xs">
+            <div className="text-center text-xs">
               <Link href="/forgot-password" className="text-gray-500 hover:text-gray-300 transition-colors dark:text-gray-400 dark:hover:text-gray-200">
                 Forgot password?
-              </Link>
-              <Link href="/verify-email" className="text-gray-500 hover:text-gray-300 transition-colors dark:text-gray-400 dark:hover:text-gray-200">
-                Verify email
               </Link>
             </div>
           </form>
