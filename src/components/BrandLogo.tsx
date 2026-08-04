@@ -8,12 +8,12 @@ type Variant = "login" | "sidebar";
 
 const SIZE: Record<Variant, { className: string; width: number; height: number }> = {
   login: {
-    className: "h-48 w-auto max-w-[min(100%,440px)] object-contain sm:h-56",
+    className: "h-56 w-auto max-w-[min(100%,480px)] object-contain sm:h-64",
     width: 2048,
     height: 2048,
   },
   sidebar: {
-    className: "h-36 w-auto max-w-full object-contain",
+    className: "h-44 w-auto max-w-full object-contain",
     width: 2048,
     height: 2048,
   },
