@@ -1,22 +1,18 @@
 // src/components/BrandLogo.tsx
-// Original brand artwork only — no plate/rectangle, no CSS zoom, no /api/icon crop.
+// Cropped lockup artwork — no plate, no CSS zoom, no /api/icon crop.
 "use client";
 
 import { BRAND_LOGO_CACHE_BUST, LOCAL_BRAND_LOGO_URL } from "@/lib/brand";
 
 type Variant = "login" | "sidebar";
 
-const SIZE: Record<Variant, { className: string; width: number; height: number }> = {
-  login: {
-    className: "h-56 w-auto max-w-[min(100%,480px)] object-contain sm:h-64",
-    width: 2048,
-    height: 2048,
-  },
-  sidebar: {
-    className: "h-44 w-auto max-w-full object-contain",
-    width: 2048,
-    height: 2048,
-  },
+/** Intrinsic size of public/parth-logo.png (padding already cropped). */
+const INTRINSIC = { width: 1921, height: 562 };
+
+const SIZE: Record<Variant, string> = {
+  // Width-led so the wide lockup stays tight (no empty top/bottom).
+  login: "h-auto w-[min(100%,300px)] object-contain sm:w-[340px]",
+  sidebar: "h-auto w-full max-w-[200px] object-contain",
 };
 
 function withCacheBust(url: string) {
@@ -42,17 +38,16 @@ export function BrandLogo({
   alt?: string;
 }) {
   const src = withCacheBust(resolveSrc(logoUrl));
-  const s = SIZE[variant];
 
   return (
     <img
       src={src}
       alt={alt}
-      width={s.width}
-      height={s.height}
+      width={INTRINSIC.width}
+      height={INTRINSIC.height}
       decoding="async"
       fetchPriority={variant === "login" ? "high" : "auto"}
-      className={s.className}
+      className={SIZE[variant]}
     />
   );
 }

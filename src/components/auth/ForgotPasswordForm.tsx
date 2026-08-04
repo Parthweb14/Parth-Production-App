@@ -38,12 +38,12 @@ export function ForgotPasswordForm({ logoUrl }: { logoUrl: string | null }) {
   return (
     <div className="dark flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black p-4">
       <div className="w-full max-w-md">
-        <div className="glass rounded-2xl p-8 shadow-2xl">
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-5 flex items-center justify-center">
+        <div className="glass rounded-2xl px-6 pb-8 pt-5 shadow-2xl sm:px-8 sm:pt-6">
+          <div className="mb-5 text-center">
+            <div className="mx-auto flex items-center justify-center leading-none">
               <BrandLogo logoUrl={logoUrl} variant="login" />
             </div>
-            <p className="text-sm text-gray-400">
+            <p className="mt-1.5 text-sm leading-snug text-gray-400 sm:mt-2">
               {step === "email" && "Forgot your password? Reset it here."}
               {step === "otp" && "Check your email for the OTP."}
               {step === "reset" && "Choose a new password."}
