@@ -1,18 +1,24 @@
 // src/components/BrandLogo.tsx
-// Cropped lockup artwork — no plate, no CSS zoom, no /api/icon crop.
+// Theme-aware brand artwork — light menu uses light logo; dark/login uses white lockup.
 "use client";
 
-import { BRAND_LOGO_CACHE_BUST, LOCAL_BRAND_LOGO_URL } from "@/lib/brand";
+import {
+  BRAND_LOGO_CACHE_BUST,
+  LIGHT_BRAND_LOGO_URL,
+  LOCAL_BRAND_LOGO_URL,
+} from "@/lib/brand";
+import { useTheme } from "@/lib/theme";
 
 type Variant = "login" | "sidebar";
 
-/** Intrinsic size of public/parth-logo.png (padding already cropped). */
-const INTRINSIC = { width: 1921, height: 562 };
+const INTRINSIC = {
+  dark: { width: 1921, height: 562 },
+  light: { width: 1254, height: 423 },
+};
 
 const SIZE: Record<Variant, string> = {
-  // Width-led so the wide lockup stays tight (no empty top/bottom).
   login: "h-auto w-[min(100%,300px)] object-contain sm:w-[340px]",
-  sidebar: "h-auto w-full max-w-[200px] object-contain",
+  sidebar: "h-auto w-full max-w-[200px] object-contain rounded-[6px]",
 };
 
 function withCacheBust(url: string) {
@@ -37,14 +43,19 @@ export function BrandLogo({
   variant: Variant;
   alt?: string;
 }) {
-  const src = withCacheBust(resolveSrc(logoUrl));
+  const { resolved } = useTheme();
+  // Login page is always dark chrome — keep the white lockup.
+  // Sidebar/menu: in light mode use the light-friendly logo.
+  const useLight = variant === "sidebar" && resolved === "light";
+  const src = withCacheBust(useLight ? LIGHT_BRAND_LOGO_URL : resolveSrc(logoUrl));
+  const intrinsic = useLight ? INTRINSIC.light : INTRINSIC.dark;
 
   return (
     <img
       src={src}
       alt={alt}
-      width={INTRINSIC.width}
-      height={INTRINSIC.height}
+      width={intrinsic.width}
+      height={intrinsic.height}
       decoding="async"
       fetchPriority={variant === "login" ? "high" : "auto"}
       className={SIZE[variant]}
