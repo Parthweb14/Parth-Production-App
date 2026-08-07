@@ -12,12 +12,12 @@ import { useTheme } from "@/lib/theme";
 type Variant = "login" | "sidebar";
 
 const INTRINSIC = {
-  dark: { width: 1921, height: 562 },
+  dark: { width: 1876, height: 518 },
   light: { width: 1254, height: 423 },
 };
 
 const SIZE: Record<Variant, string> = {
-  login: "h-auto w-[min(100%,300px)] object-contain sm:w-[340px]",
+  login: "mx-auto block h-auto w-[min(100%,300px)] object-contain sm:w-[340px]",
   sidebar: "h-auto w-full max-w-[200px] object-contain rounded-[6px]",
 };
 
