@@ -1,13 +1,15 @@
 "use client";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { loginAction } from "@/server/auth-actions";
 import { AuthCaptchaFields } from "@/components/auth/AuthCaptchaFields";
 import { BrandLogo } from "@/components/BrandLogo";
 
 export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
   const [state, formAction, pending] = useActionState(loginAction, null);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailChanged = searchParams.get("emailChanged") === "1";
@@ -58,13 +60,25 @@ export function LoginForm({ logoUrl }: { logoUrl: string | null }) {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-              <input
-                name="password"
-                type="password"
-                required
-                className="glass-input h-11 w-full rounded-lg px-3 text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 dark:text-gray-100 dark:placeholder-gray-500"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  className="glass-input h-11 w-full rounded-lg px-3 pr-11 text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 dark:text-gray-100 dark:placeholder-gray-500"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 transition-colors hover:text-gray-200"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <AuthCaptchaFields required={Boolean(state?.captchaRequired)} captcha={state?.captcha} />
             <button
